@@ -7,6 +7,7 @@ import {
   MapPin,
   Moon,
   Sun,
+  BookOpen,
   Heart,
   MessageSquare,
   Bell,
@@ -15,7 +16,7 @@ import {
   Shield,
   LogOut,
 } from 'lucide-react';
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useState, useRef, Suspense } from 'react';
 import LocationModal from './LocationModal';
 
 function NavbarContent() {
@@ -29,6 +30,23 @@ function NavbarContent() {
     searchParams.get('location') || 'All Nigeria'
   );
   const [showLocationModal, setShowLocationModal] = useState(false);
+
+  const [menuOpen, setMenuOpen] = useState(false);
+const profileMenuRef = useRef<HTMLDivElement>(null);
+
+useEffect(() => {
+  const handleOutsideClick = (e: MouseEvent | TouchEvent) => {
+    if (profileMenuRef.current && !profileMenuRef.current.contains(e.target as Node)) {
+      setMenuOpen(false);
+    }
+  };
+  document.addEventListener('mousedown', handleOutsideClick);
+  document.addEventListener('touchstart', handleOutsideClick);
+  return () => {
+    document.removeEventListener('mousedown', handleOutsideClick);
+    document.removeEventListener('touchstart', handleOutsideClick);
+  };
+}, []);
 
   // Sync theme state on mount
   useEffect(() => {
@@ -194,6 +212,16 @@ function NavbarContent() {
                   <Moon className="w-[1.15rem] h-[1.15rem]" />
                 )}
               </button>
+
+              <Link
+                href="/blog"
+                className="text-gray-500 hover:text-brand-orange transition flex items-center gap-1 text-xs font-bold"
+                title="ji.africa Blog"
+              >
+                <BookOpen className="w-[1.15rem] h-[1.15rem]" />
+                <span className="hidden lg:inline">Blog</span>
+              </Link>
+
               <Link
                 href="/wishlist"
                 className="text-gray-500 hover:text-brand-orange transition"
@@ -220,82 +248,98 @@ function NavbarContent() {
               </button>
 
               {/* Profile Dropdown */}
-              <div className="relative pl-1 border-l border-gray-200 group">
-                {user ? (
-                  <div className="flex items-center gap-2 transition ml-1 cursor-pointer py-1">
-                    <div className="w-7 h-7 rounded-full bg-orange-100 text-orange-700 font-bold flex items-center justify-center text-xs overflow-hidden border border-orange-200">
-                      {avatarSrc ? (
-                        <img
-                          src={avatarSrc}
-                          alt={user.full_name}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        user.full_name.charAt(0).toUpperCase()
-                      )}
-                    </div>
-                    <span className="text-xs font-bold hidden md:block text-gray-700 group-hover:text-brand-orange transition-colors">
-                      {user.full_name.split(' ')[0]}
-                    </span>
+              {/* Tap & Click Profile Dropdown (Mobile + Desktop) */}
+           <div ref={profileMenuRef} className="relative pl-1 border-l border-gray-200">
+             {user ? (
+               <div className="ml-1">
+                 <button
+                   type="button"
+                   onClick={() => setMenuOpen((prev) => !prev)}
+                   aria-expanded={menuOpen}
+                   className="flex items-center gap-2 transition cursor-pointer py-1 focus:outline-none"
+                 >
+                   <div className="w-7 h-7 rounded-full bg-orange-100 text-orange-700 font-bold flex items-center justify-center text-xs overflow-hidden border border-orange-200">
+                     {avatarSrc ? (
+                       <img
+                         src={avatarSrc}
+                         alt={user.full_name}
+                         className="w-full h-full object-cover"
+                       />
+                     ) : (
+                       user.full_name.charAt(0).toUpperCase()
+                     )}
+                   </div>
+                   <span className="text-xs font-bold hidden md:block text-gray-700 hover:text-brand-orange transition-colors">
+                     {user.full_name.split(' ')[0]}
+                   </span>
+                 </button>
 
-                    <div className="absolute top-full right-0 pt-2 w-56 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
-                      <div className="bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden text-gray-900">
-                        <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 relative overflow-hidden">
-                          {user.is_verified && (
-                            <div className="absolute -right-6 top-2 bg-blue-500 text-white text-[8px] font-bold px-6 py-0.5 rotate-45 shadow-sm">
-                              VERIFIED
-                            </div>
-                          )}
-                          <p className="font-bold text-sm text-gray-900">{user.full_name}</p>
-                          <p className="text-[11px] text-gray-500 truncate">{user.email}</p>
-                        </div>
+                 {menuOpen && (
+                   <div className="absolute top-full right-0 mt-2 w-56 z-50">
+                     <div className="bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden text-gray-900">
+                       <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 relative overflow-hidden">
+                         {user.is_verified && (
+                           <div className="absolute -right-6 top-2 bg-blue-500 text-white text-[8px] font-bold px-6 py-0.5 rotate-45 shadow-sm">
+                             VERIFIED
+                           </div>
+                         )}
+                         <p className="font-bold text-sm text-gray-900">{user.full_name}</p>
+                         <p className="text-[11px] text-gray-500 truncate">{user.email}</p>
+                       </div>
 
-                        <div className="py-1 bg-white">
-                          <Link
-                            href="/profile"
-                            className="w-full text-left px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-orange-50 hover:text-brand-orange flex items-center gap-2 transition"
-                          >
-                            <User className="w-4 h-4 text-gray-400" /> My Profile &amp; Shop
-                          </Link>
-                          <Link
-                            href="/dashboard/seller"
-                            className="w-full text-left px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-orange-50 hover:text-brand-orange flex items-center gap-2 transition"
-                          >
-                            <LayoutDashboard className="w-4 h-4 text-gray-400" /> Seller Dashboard
-                          </Link>
-                          {isAdmin && (
-                            <Link
-                              href="/dashboard/admin"
-                              className="w-full text-left px-4 py-2 text-xs font-semibold text-gray-900 bg-gray-100 hover:bg-gray-200 flex items-center gap-2 transition"
-                            >
-                              <Shield className="w-4 h-4 text-brand-orange" /> Admin Center
-                            </Link>
-                          )}
-                        </div>
+                       <div className="py-1 bg-white">
+                         <Link
+                           href="/profile"
+                           onClick={() => setMenuOpen(false)}
+                           className="w-full text-left px-4 py-2.5 text-xs font-semibold text-gray-700 hover:bg-orange-50 hover:text-brand-orange flex items-center gap-2 transition"
+                         >
+                           <User className="w-4 h-4 text-gray-400" /> My Profile &amp; Shop
+                         </Link>
+                         <Link
+                           href="/dashboard/seller"
+                           onClick={() => setMenuOpen(false)}
+                           className="w-full text-left px-4 py-2.5 text-xs font-semibold text-gray-700 hover:bg-orange-50 hover:text-brand-orange flex items-center gap-2 transition"
+                         >
+                           <LayoutDashboard className="w-4 h-4 text-gray-400" /> Seller Dashboard
+                         </Link>
+                         {isAdmin && (
+                           <Link
+                             href="/dashboard/admin"
+                             onClick={() => setMenuOpen(false)}
+                             className="w-full text-left px-4 py-2.5 text-xs font-semibold text-gray-900 bg-gray-100 hover:bg-gray-200 flex items-center gap-2 transition"
+                           >
+                             <Shield className="w-4 h-4 text-brand-orange" /> Admin Center
+                           </Link>
+                         )}
+                       </div>
 
-                        <div className="border-t border-gray-100 py-1 bg-white">
-                          <button
-                            type="button"
-                            onClick={handleLogout}
-                            className="w-full text-left px-4 py-2 text-xs font-bold text-red-600 hover:bg-red-50 flex items-center gap-2 transition"
-                          >
-                            <LogOut className="w-4 h-4" /> Log Out
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <Link href="/login" className="flex items-center gap-2 transition ml-1">
-                    <div className="w-7 h-7 rounded-full bg-orange-100 text-orange-700 font-bold flex items-center justify-center text-xs overflow-hidden">
-                      U
-                    </div>
-                    <span className="text-xs font-bold hidden md:block text-gray-700 hover:text-brand-orange transition-colors">
-                      Log In
-                    </span>
-                  </Link>
-                )}
-              </div>
+                       <div className="border-t border-gray-100 py-1 bg-white">
+                         <button
+                           type="button"
+                           onClick={() => {
+                             setMenuOpen(false);
+                             handleLogout();
+                           }}
+                           className="w-full text-left px-4 py-2.5 text-xs font-bold text-red-600 hover:bg-red-50 flex items-center gap-2 transition"
+                         >
+                           <LogOut className="w-4 h-4" /> Log Out
+                         </button>
+                       </div>
+                     </div>
+                   </div>
+                 )}
+               </div>
+             ) : (
+               <Link href="/login" className="flex items-center gap-2 transition ml-1">
+                 <div className="w-7 h-7 rounded-full bg-orange-100 text-orange-700 font-bold flex items-center justify-center text-xs overflow-hidden">
+                   U
+                 </div>
+                 <span className="text-xs font-bold hidden md:block text-gray-700 hover:text-brand-orange transition-colors">
+                   Log In
+                 </span>
+               </Link>
+             )}
+           </div>
 
               <Link
                 href="/sell"
