@@ -31,6 +31,7 @@ export default function ProfilePage() {
 
   // Form Fields
   const [fullName, setFullName] = useState('');
+  const [username, setUsername] = useState('');
   const [shopName, setShopName] = useState('');
   const [phone, setPhone] = useState('');
   const [shopAddress, setShopAddress] = useState('');
@@ -50,7 +51,7 @@ export default function ProfilePage() {
   const [profileBlob, setProfileBlob] = useState<Blob | null>(null);
   const [bannerBlob, setBannerBlob] = useState<Blob | null>(null);
 
-  // Cropper Modal State (1:1 Profile, 4:1 Banner)
+  // Cropper Modal State
   const [cropModalOpen, setCropModalOpen] = useState(false);
   const [cropTarget, setCropTarget] = useState<'profile' | 'banner'>('profile');
   const [rawCropUrl, setRawCropUrl] = useState('');
@@ -77,6 +78,7 @@ export default function ProfilePage() {
       const u = JSON.parse(storedUser);
       setUser(u);
       setFullName(u.full_name || '');
+      setUsername(u.username || '');
       setShopName(u.shop_name || '');
       setPhone(u.phone || '');
       setShopAddress(u.shop_address || '');
@@ -96,7 +98,6 @@ export default function ProfilePage() {
     }
   }, [router]);
 
-  // Open Cropper Modal
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>, target: 'profile' | 'banner') => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -108,7 +109,6 @@ export default function ProfilePage() {
     e.target.value = '';
   };
 
-  // Export Cropped Canvas to JPEG Blob
   const confirmCrop = () => {
     const img = cropImgRef.current;
     if (!img) return;
@@ -168,6 +168,7 @@ export default function ProfilePage() {
 
     const formData = new FormData();
     formData.append('full_name', fullName);
+    formData.append('username', username.trim().toLowerCase());
     formData.append('shop_name', shopName);
     formData.append('phone', phone);
     formData.append('shop_address', shopAddress);
@@ -199,6 +200,7 @@ export default function ProfilePage() {
         setProfileBlob(null);
         setBannerBlob(null);
         setUser(data.user);
+        setUsername(data.user.username || '');
         localStorage.setItem('ji_user', JSON.stringify(data.user));
         window.dispatchEvent(new Event('ji_user_updated'));
         notify('Profile updated successfully!', 'success');
@@ -220,9 +222,10 @@ export default function ProfilePage() {
     );
   }
 
+  const shopSlug = user.username || user.id;
+
   return (
     <div className="max-w-4xl mx-auto space-y-6 pb-12">
-      {/* Toast Notification */}
       {toast && (
         <div
           className={`fixed bottom-5 right-5 z-50 flex items-center gap-2 px-4 py-3 rounded-xl shadow-xl text-xs font-bold text-white ${
@@ -260,7 +263,9 @@ export default function ProfilePage() {
             {user.full_name}
             {user.is_verified && <BadgeCheck className="w-5 h-5 text-blue-500" />}
           </h2>
-          <p className="text-xs text-gray-500">{user.email}</p>
+          <p className="text-xs text-gray-500">
+            {user.email} {user.username ? `• @${user.username}` : ''}
+          </p>
           <div className="flex flex-wrap gap-2 mt-3">
             <Link
               href="/dashboard/seller"
@@ -269,7 +274,7 @@ export default function ProfilePage() {
               My Dashboard
             </Link>
             <Link
-              href={`/shop/${user.id}`}
+              href={`/shop/${shopSlug}`}
               className="px-4 py-2 bg-white border border-gray-200 text-gray-800 rounded-lg text-xs font-bold shadow-sm transition hover:bg-gray-50"
             >
               View My Shop
@@ -341,12 +346,43 @@ export default function ProfilePage() {
 
           <div>
             <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1.5">
+              Custom Shop Username
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. aminulive"
+              value={username}
+              onChange={(e) =>
+                setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))
+              }
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm outline-none focus:border-brand-orange"
+            />
+            <p className="text-[11px] text-gray-400 mt-1">
+              Shop URL: <span className="font-semibold text-gray-600">www.ji.africa/shop/{username || user.id}</span>
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1.5">
               Shop Name (Optional)
             </label>
             <input
               type="text"
               value={shopName}
               onChange={(e) => setShopName(e.target.value)}
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm outline-none focus:border-brand-orange"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1.5">
+              Phone Number
+            </label>
+            <input
+              type="tel"
+              required
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
               className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm outline-none focus:border-brand-orange"
             />
           </div>
@@ -364,19 +400,6 @@ export default function ProfilePage() {
           </div>
 
           <div>
-            <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1.5">
-              Phone Number
-            </label>
-            <input
-              type="tel"
-              required
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm outline-none focus:border-brand-orange"
-            />
-          </div>
-
-          <div className="md:col-span-2">
             <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1.5">
               Shop Address / Location
             </label>
@@ -462,7 +485,7 @@ export default function ProfilePage() {
         </div>
       </form>
 
-      {/* Adjust Image Cropper Modal (1:1 for Profile, 4:1 for Banner) */}
+      {/* Adjust Image Cropper Modal */}
       {cropModalOpen && (
         <div className="fixed inset-0 bg-gray-900/90 backdrop-blur-sm z-[60] flex flex-col items-center justify-center p-4">
           <div className="bg-gray-950 w-full max-w-3xl rounded-2xl overflow-hidden shadow-2xl relative flex flex-col">
@@ -484,7 +507,6 @@ export default function ProfilePage() {
                 Drag image to reposition • Use slider to zoom
               </p>
 
-              {/* Crop Frame */}
               <div
                 onMouseDown={(e) => {
                   setDragging(true);
@@ -518,7 +540,6 @@ export default function ProfilePage() {
                 />
               </div>
 
-              {/* Zoom Slider */}
               <div className="flex items-center gap-3 w-full max-w-xs text-white">
                 <ZoomOut className="w-4 h-4 text-gray-400" />
                 <input
