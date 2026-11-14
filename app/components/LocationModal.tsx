@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { X, MapPin, ChevronRight, ChevronLeft, Search, Check } from 'lucide-react';
-// @ts-expect-error nigeria-geo-core ships JS without bundled d.ts
+
 import { getStates, getLGAsByState } from '@some19ice/nigeria-geo-core';
 
 interface LocationSelection {
