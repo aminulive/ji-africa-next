@@ -3,55 +3,135 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ChevronLeft, Loader2, AlertCircle } from 'lucide-react';
+import {
+  ChevronLeft,
+  Loader2,
+  AlertCircle,
+  CheckCircle2,
+  X,
+  ShieldCheck,
+  KeyRound,
+  MailCheck,
+} from 'lucide-react';
+import { GoogleLogin } from '@react-oauth/google';
+
+const API_URL = 'https://ji-africa-backend.onrender.com/api';
 
 export default function LoginPage() {
   const router = useRouter();
-  const [isLogin, setIsLogin] = useState(true);
+  const [mode, setMode] = useState<'login' | 'register' | 'forgot' | 'verify'>('login');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
 
-  // Core Auth States
+  // Login / Shared States
+  const [identifier, setIdentifier] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  
+
   // Extended Registration States
   const [fullName, setFullName] = useState('');
+  const [username, setUsername] = useState('');
   const [phone, setPhone] = useState('');
   const [shopName, setShopName] = useState('');
   const [shopAddress, setShopAddress] = useState('');
   const [shopDescription, setShopDescription] = useState('');
   const [profileImage, setProfileImage] = useState<File | null>(null);
-  const [socials, setSocials] = useState({ facebook: '', twitter: '', instagram: '', tiktok: '', youtube: '', whatsapp: '' });
+  const [socials, setSocials] = useState({
+    facebook: '',
+    twitter: '',
+    instagram: '',
+    tiktok: '',
+    youtube: '',
+    whatsapp: '',
+  });
+
+  // Compliance & Newsletter States
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [newsletterSubscribed, setNewsletterSubscribed] = useState(true);
+  const [showTermsModal, setShowTermsModal] = useState(false);
+
+  // Verification & Password Reset States
+  const [otpCode, setOtpCode] = useState('');
+  const [resetStep, setResetStep] = useState<'request' | 'confirm'>('request');
+  const [newPassword, setNewPassword] = useState('');
+
+  const hasGoogleClient = Boolean(process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID);
+
+  const completeSession = (data: any) => {
+    localStorage.setItem('ji_user', JSON.stringify(data.user));
+    localStorage.setItem('ji_token', data.token);
+    window.dispatchEvent(new Event('ji_user_updated'));
+    router.push('/');
+    router.refresh();
+  };
+
+  const handleGoogleSuccess = async (credentialResponse: any) => {
+    if (!credentialResponse?.credential) return;
+    setLoading(true);
+    setError('');
+    try {
+      const res = await fetch(`${API_URL}/auth/google`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credential: credentialResponse.credential }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        completeSession(data);
+      } else {
+        setError(data.error || 'Google sign-in failed.');
+      }
+    } catch {
+      setError('Network error during Google sign-in.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
+    setSuccessMsg('');
 
     try {
-      let res;
-
-      if (isLogin) {
-        // LOGIN: Standard JSON Payload
-        res = await fetch('https://ji-africa-backend.onrender.com/api/auth/login', {
+      if (mode === 'login') {
+        const res = await fetch(`${API_URL}/auth/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password })
+          body: JSON.stringify({ identifier, password }),
         });
-      } else {
-        // REGISTRATION: FormData Payload (Required for Image Uploads)
+        const data = await res.json();
+        if (res.ok) {
+          completeSession(data);
+        } else {
+          setError(data.error || 'Invalid credentials. Please try again.');
+        }
+        return;
+      }
+
+      if (mode === 'register') {
+        if (!acceptedTerms) {
+          setError('Please read and accept the Terms & Conditions and Privacy Policy.');
+          setLoading(false);
+          return;
+        }
+
         const formData = new FormData();
         formData.append('full_name', fullName);
+        if (username.trim()) formData.append('username', username.trim().toLowerCase());
         formData.append('email', email);
         formData.append('phone', phone);
         formData.append('password', password);
-        
+        formData.append('accepted_terms', 'true');
+        formData.append('newsletter_subscribed', newsletterSubscribed ? 'true' : 'false');
+
         if (shopName) formData.append('shop_name', shopName);
         if (shopAddress) formData.append('shop_address', shopAddress);
         if (shopDescription) formData.append('shop_description', shopDescription);
         if (profileImage) formData.append('profile_image', profileImage);
-        
+
         if (socials.facebook) formData.append('facebook', socials.facebook);
         if (socials.twitter) formData.append('twitter', socials.twitter);
         if (socials.instagram) formData.append('instagram', socials.instagram);
@@ -59,24 +139,79 @@ export default function LoginPage() {
         if (socials.youtube) formData.append('youtube', socials.youtube);
         if (socials.whatsapp) formData.append('whatsapp', socials.whatsapp);
 
-        res = await fetch('https://ji-africa-backend.onrender.com/api/auth/register', {
+        const res = await fetch(`${API_URL}/auth/register`, {
           method: 'POST',
-          body: formData // Note: No Content-Type header when sending FormData
+          body: formData,
         });
+        const data = await res.json();
+
+        if (res.ok) {
+          localStorage.setItem('ji_user', JSON.stringify(data.user));
+          localStorage.setItem('ji_token', data.token);
+          window.dispatchEvent(new Event('ji_user_updated'));
+          setOtpCode('');
+          setSuccessMsg(
+            `Account created! We sent a 6-digit verification code to ${email}. Enter it below or continue to your shop.`
+          );
+          setMode('verify');
+        } else {
+          setError(data.error || 'Registration failed. Please check your details.');
+        }
+        return;
       }
-      
-      const data = await res.json();
-      
-      if (res.ok) {
-        localStorage.setItem('ji_user', JSON.stringify(data.user));
-        localStorage.setItem('ji_token', data.token);
-        
-        router.push('/');
-        router.refresh();
-      } else {
-        setError(data.error || 'Authentication failed. Please try again.');
+
+      if (mode === 'verify') {
+        const res = await fetch(`${API_URL}/auth/verify-email`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, code: otpCode }),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          if (data.user) {
+            localStorage.setItem('ji_user', JSON.stringify(data.user));
+            window.dispatchEvent(new Event('ji_user_updated'));
+          }
+          router.push('/');
+          router.refresh();
+        } else {
+          setError(data.error || 'Invalid verification code.');
+        }
+        return;
       }
-    } catch (err) {
+
+      if (mode === 'forgot') {
+        if (resetStep === 'request') {
+          const res = await fetch(`${API_URL}/auth/forgot-password`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email }),
+          });
+          const data = await res.json();
+          if (res.ok) {
+            setSuccessMsg(data.message || 'Reset code sent! Check your email inbox.');
+            setResetStep('confirm');
+          } else {
+            setError(data.error || 'Could not send reset code.');
+          }
+        } else {
+          const res = await fetch(`${API_URL}/auth/reset-password`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, code: otpCode, new_password: newPassword }),
+          });
+          const data = await res.json();
+          if (res.ok) {
+            setSuccessMsg(data.message || 'Password updated! Please log in.');
+            setMode('login');
+            setResetStep('request');
+            setPassword('');
+          } else {
+            setError(data.error || 'Could not reset password.');
+          }
+        }
+      }
+    } catch {
       setError('Network error. Is the server waking up? Please try again.');
     } finally {
       setLoading(false);
@@ -85,93 +220,507 @@ export default function LoginPage() {
 
   return (
     <div className="max-w-md mx-auto py-8 px-4">
-      <Link href="/" className="inline-flex items-center gap-2 text-sm font-semibold text-gray-500 hover:text-brand-orange mb-6 transition">
+      <Link
+        href="/"
+        className="inline-flex items-center gap-2 text-sm font-semibold text-gray-500 hover:text-brand-orange mb-6 transition"
+      >
         <ChevronLeft className="w-4 h-4" /> Back to Home
       </Link>
 
       <div className="bg-white rounded-2xl p-6 shadow-xl border border-gray-100">
-        
-        {/* Tabs */}
-        <div className="flex border-b border-gray-200 mb-6">
-          <button 
-            onClick={() => { setIsLogin(true); setError(''); }}
-            type="button"
-            className={`flex-1 pb-3 font-semibold text-center transition ${isLogin ? 'text-brand-orange border-b-2 border-brand-orange' : 'text-gray-400 border-b-2 border-transparent hover:text-gray-600'}`}
-          >
-            Log In
-          </button>
-          <button 
-            onClick={() => { setIsLogin(false); setError(''); }}
-            type="button"
-            className={`flex-1 pb-3 font-semibold text-center transition ${!isLogin ? 'text-brand-orange border-b-2 border-brand-orange' : 'text-gray-400 border-b-2 border-transparent hover:text-gray-600'}`}
-          >
-            Create Account
-          </button>
-        </div>
-
-        {/* Error Message Display */}
-        {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 text-xs font-bold rounded-lg flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            {error}
+        {/* Top Tabs (Login vs Create Account) */}
+        {(mode === 'login' || mode === 'register') && (
+          <div className="flex border-b border-gray-200 mb-6">
+            <button
+              onClick={() => {
+                setMode('login');
+                setError('');
+                setSuccessMsg('');
+              }}
+              type="button"
+              className={`flex-1 pb-3 font-semibold text-center transition ${
+                mode === 'login'
+                  ? 'text-brand-orange border-b-2 border-brand-orange'
+                  : 'text-gray-400 border-b-2 border-transparent hover:text-gray-600'
+              }`}
+            >
+              Log In
+            </button>
+            <button
+              onClick={() => {
+                setMode('register');
+                setError('');
+                setSuccessMsg('');
+              }}
+              type="button"
+              className={`flex-1 pb-3 font-semibold text-center transition ${
+                mode === 'register'
+                  ? 'text-brand-orange border-b-2 border-brand-orange'
+                  : 'text-gray-400 border-b-2 border-transparent hover:text-gray-600'
+              }`}
+            >
+              Create Account
+            </button>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          
-          {!isLogin && (
-            <>
-              <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1.5">Profile Photo (Optional)</label>
-                <input 
-                  type="file" 
-                  accept="image/*"
-                  onChange={(e) => setProfileImage(e.target.files?.[0] || null)}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white cursor-pointer file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-orange-50 file:text-brand-orange hover:file:bg-orange-100"
-                />
+        {/* Error & Success Banners */}
+        {error && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 text-xs font-bold rounded-lg flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
+
+        {successMsg && (
+          <div className="mb-4 p-3 bg-green-50 border border-green-200 text-green-700 text-xs font-bold rounded-lg flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 shrink-0" />
+            <span>{successMsg}</span>
+          </div>
+        )}
+
+        {/* Google OAuth Button */}
+        {(mode === 'login' || mode === 'register') && hasGoogleClient && (
+          <div className="mb-5">
+            <div className="flex justify-center">
+              <GoogleLogin
+                onSuccess={handleGoogleSuccess}
+                onError={() => setError('Google Sign-In was cancelled or failed.')}
+                shape="rectangular"
+                size="large"
+                width="100%"
+                text={mode === 'login' ? 'signin_with' : 'signup_with'}
+              />
+            </div>
+            <div className="relative my-5">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-200" />
               </div>
-
-              <input type="text" placeholder="Full Name" required value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition" />
-              <input type="text" placeholder="Shop Name / Brand Name (Optional)" value={shopName} onChange={(e) => setShopName(e.target.value)} className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition" />
-              <input type="tel" placeholder="Phone Number (e.g. 08012345678)" required value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition" />
-            </>
-          )}
-
-          <input type="email" placeholder="Email Address" required value={email} onChange={(e) => setEmail(e.target.value)} className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition" />
-          
-          {!isLogin && (
-            <>
-              <input type="text" placeholder="Shop Address / Location (e.g. Wuse 2, Abuja)" value={shopAddress} onChange={(e) => setShopAddress(e.target.value)} className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition" />
-              <textarea placeholder="Short description of your shop/business..." rows={2} value={shopDescription} onChange={(e) => setShopDescription(e.target.value)} className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition"></textarea>
-            </>
-          )}
-
-          <input type="password" placeholder="Password" required value={password} onChange={(e) => setPassword(e.target.value)} className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition" />
-
-          {!isLogin && (
-            <div className="mt-4 pt-4 border-t border-gray-100">
-              <p className="text-xs font-bold text-gray-800 mb-3">Add Social Media Handles (Optional)</p>
-              <div className="grid grid-cols-2 gap-3">
-                <input type="text" placeholder="Facebook URL" value={socials.facebook} onChange={(e) => setSocials({...socials, facebook: e.target.value})} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition" />
-                <input type="text" placeholder="X (Twitter) URL" value={socials.twitter} onChange={(e) => setSocials({...socials, twitter: e.target.value})} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition" />
-                <input type="text" placeholder="Instagram URL" value={socials.instagram} onChange={(e) => setSocials({...socials, instagram: e.target.value})} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition" />
-                <input type="text" placeholder="TikTok URL" value={socials.tiktok} onChange={(e) => setSocials({...socials, tiktok: e.target.value})} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition" />
-                <input type="text" placeholder="YouTube Channel URL" value={socials.youtube} onChange={(e) => setSocials({...socials, youtube: e.target.value})} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition" />
-                <input type="text" placeholder="WhatsApp Link (wa.me/)" value={socials.whatsapp} onChange={(e) => setSocials({...socials, whatsapp: e.target.value})} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition" />
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-white px-3 text-gray-400 font-semibold">or continue with</span>
               </div>
             </div>
-          )}
+          </div>
+        )}
 
-          <button 
-            type="submit" 
-            disabled={loading}
-            className="w-full mt-4 flex justify-center items-center py-3.5 bg-brand-orange hover:bg-orange-700 text-white font-bold rounded-lg shadow-sm transition disabled:opacity-70"
-          >
-            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : (isLogin ? 'Log In' : 'Create Account')}
-          </button>
-        </form>
+        {/* --- MODE 1: LOGIN --- */}
+        {mode === 'login' && (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1">
+                Email, Phone Number, or Username
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. aminulive, 08012345678, or email@domain.com"
+                required
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
+                className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition"
+              />
+            </div>
 
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-[11px] font-bold text-gray-500 uppercase">
+                  Password
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode('forgot');
+                    setResetStep('request');
+                    setError('');
+                    setSuccessMsg('');
+                  }}
+                  className="text-xs font-semibold text-brand-orange hover:underline"
+                >
+                  Forgot password?
+                </button>
+              </div>
+              <input
+                type="password"
+                placeholder="Enter your password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full mt-2 flex justify-center items-center py-3.5 bg-brand-orange hover:bg-orange-700 text-white font-bold rounded-lg shadow-sm transition disabled:opacity-70"
+            >
+              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Log In'}
+            </button>
+          </form>
+        )}
+
+        {/* --- MODE 2: CREATE ACCOUNT --- */}
+        {mode === 'register' && (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-gray-700 mb-1.5">
+                Profile Photo (Optional)
+              </label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => setProfileImage(e.target.files?.[0] || null)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white cursor-pointer file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-orange-50 file:text-brand-orange hover:file:bg-orange-100"
+              />
+            </div>
+
+            <input
+              type="text"
+              placeholder="Full Name *"
+              required
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition"
+            />
+
+            <div>
+              <input
+                type="text"
+                placeholder="Shop Username (e.g. aminulive)"
+                value={username}
+                onChange={(e) =>
+                  setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))
+                }
+                className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition"
+              />
+              <p className="text-[11px] text-gray-400 mt-1">
+                Your custom shop link: <span className="font-semibold text-gray-600">ji.africa/shop/{username || 'yourname'}</span>
+              </p>
+            </div>
+
+            <input
+              type="text"
+              placeholder="Shop Name / Brand Name (Optional)"
+              value={shopName}
+              onChange={(e) => setShopName(e.target.value)}
+              className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition"
+            />
+
+            <input
+              type="tel"
+              placeholder="Phone Number (e.g. 08012345678) *"
+              required
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition"
+            />
+
+            <input
+              type="email"
+              placeholder="Email Address *"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition"
+            />
+
+            <input
+              type="text"
+              placeholder="Shop Address / Location (e.g. Wuse 2, Abuja)"
+              value={shopAddress}
+              onChange={(e) => setShopAddress(e.target.value)}
+              className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition"
+            />
+
+            <textarea
+              placeholder="Short description of your shop/business..."
+              rows={2}
+              value={shopDescription}
+              onChange={(e) => setShopDescription(e.target.value)}
+              className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition"
+            />
+
+            <input
+              type="password"
+              placeholder="Create Password (min 6 characters) *"
+              required
+              minLength={6}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition"
+            />
+
+            <div className="pt-3 border-t border-gray-100">
+              <p className="text-xs font-bold text-gray-800 mb-3">
+                Add Social Media Handles (Optional)
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <input
+                  type="text"
+                  placeholder="Facebook URL"
+                  value={socials.facebook}
+                  onChange={(e) => setSocials({ ...socials, facebook: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition"
+                />
+                <input
+                  type="text"
+                  placeholder="X (Twitter) URL"
+                  value={socials.twitter}
+                  onChange={(e) => setSocials({ ...socials, twitter: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition"
+                />
+                <input
+                  type="text"
+                  placeholder="Instagram URL"
+                  value={socials.instagram}
+                  onChange={(e) => setSocials({ ...socials, instagram: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition"
+                />
+                <input
+                  type="text"
+                  placeholder="TikTok URL"
+                  value={socials.tiktok}
+                  onChange={(e) => setSocials({ ...socials, tiktok: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition"
+                />
+                <input
+                  type="text"
+                  placeholder="YouTube Channel URL"
+                  value={socials.youtube}
+                  onChange={(e) => setSocials({ ...socials, youtube: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition"
+                />
+                <input
+                  type="text"
+                  placeholder="WhatsApp Link (wa.me/)"
+                  value={socials.whatsapp}
+                  onChange={(e) => setSocials({ ...socials, whatsapp: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition"
+                />
+              </div>
+            </div>
+
+            {/* Mandatory Terms & Conditions + Newsletter Opt-In */}
+            <div className="pt-3 border-t border-gray-100 space-y-3">
+              <div className="flex items-start gap-2.5 bg-orange-50/70 p-3 rounded-xl border border-orange-100">
+                <input
+                  id="accept-terms"
+                  type="checkbox"
+                  checked={acceptedTerms}
+                  onChange={(e) => setAcceptedTerms(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 accent-brand-orange cursor-pointer shrink-0"
+                />
+                <div className="text-xs text-gray-700 leading-relaxed">
+                  <label htmlFor="accept-terms" className="cursor-pointer">
+                    I agree to the{' '}
+                    <Link href="/terms" className="text-brand-orange font-bold hover:underline">
+                      Terms &amp; Conditions
+                    </Link>{' '}
+                    and{' '}
+                    <Link href="/privacy" className="text-brand-orange font-bold hover:underline">
+                      Privacy Policy
+                    </Link>
+                    , and confirm I will not list prohibited items.
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowTermsModal(true)}
+                    className="ml-2 inline-flex items-center gap-1 text-[11px] font-bold text-gray-900 bg-white border border-gray-200 px-2 py-0.5 rounded hover:border-brand-orange transition"
+                  >
+                    Read Terms
+                  </button>
+                </div>
+              </div>
+
+              <label className="flex items-center gap-2.5 text-xs text-gray-600 cursor-pointer px-1">
+                <input
+                  type="checkbox"
+                  checked={newsletterSubscribed}
+                  onChange={(e) => setNewsletterSubscribed(e.target.checked)}
+                  className="w-4 h-4 accent-brand-orange cursor-pointer shrink-0"
+                />
+                <span>Send me weekly Hot Deals &amp; top marketplace offers via email.</span>
+              </label>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full mt-2 flex justify-center items-center py-3.5 bg-brand-orange hover:bg-orange-700 text-white font-bold rounded-lg shadow-sm transition disabled:opacity-70"
+            >
+              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Create Account'}
+            </button>
+          </form>
+        )}
+
+        {/* --- MODE 3: EMAIL VERIFICATION --- */}
+        {mode === 'verify' && (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="flex items-center gap-2 text-brand-orange font-bold text-base">
+              <MailCheck className="w-5 h-5" />
+              <h2>Verify Your Email</h2>
+            </div>
+            <p className="text-xs text-gray-500">
+              Enter the 6-digit code sent to <strong>{email}</strong>.
+            </p>
+            <input
+              type="text"
+              maxLength={6}
+              required
+              value={otpCode}
+              onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
+              placeholder="000000"
+              className="w-full px-4 py-3 border border-gray-200 rounded-lg text-center text-xl font-black tracking-[0.4em] bg-gray-50 focus:bg-white focus:border-brand-orange outline-none"
+            />
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-3.5 bg-brand-orange hover:bg-orange-700 text-white font-bold rounded-lg transition flex items-center justify-center"
+            >
+              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Verify Email'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                router.push('/');
+                router.refresh();
+              }}
+              className="w-full py-2 text-xs font-semibold text-gray-500 hover:text-gray-800"
+            >
+              Skip for now &amp; go to Marketplace
+            </button>
+          </form>
+        )}
+
+        {/* --- MODE 4: FORGOT / RESET PASSWORD --- */}
+        {mode === 'forgot' && (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="flex items-center gap-2 text-gray-900 font-bold text-base">
+              <KeyRound className="w-5 h-5 text-brand-orange" />
+              <h2>Reset Password</h2>
+            </div>
+
+            {resetStep === 'request' ? (
+              <>
+                <p className="text-xs text-gray-500">
+                  Enter the email address linked to your account and we will send you a 6-digit recovery code.
+                </p>
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Registered Email Address"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:bg-white focus:border-brand-orange outline-none"
+                />
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-3.5 bg-brand-orange hover:bg-orange-700 text-white font-bold rounded-lg transition flex items-center justify-center"
+                >
+                  {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Send Recovery Code'}
+                </button>
+              </>
+            ) : (
+              <>
+                <input
+                  type="text"
+                  maxLength={6}
+                  required
+                  value={otpCode}
+                  onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                  placeholder="6-Digit Reset Code"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg text-center text-lg font-bold tracking-widest bg-gray-50 focus:bg-white focus:border-brand-orange outline-none"
+                />
+                <input
+                  type="password"
+                  required
+                  minLength={6}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="New Password (min 6 characters)"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:bg-white focus:border-brand-orange outline-none"
+                />
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-3.5 bg-brand-orange hover:bg-orange-700 text-white font-bold rounded-lg transition flex items-center justify-center"
+                >
+                  {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Update Password'}
+                </button>
+              </>
+            )}
+
+            <button
+              type="button"
+              onClick={() => {
+                setMode('login');
+                setResetStep('request');
+                setError('');
+                setSuccessMsg('');
+              }}
+              className="w-full py-2 text-xs font-semibold text-gray-500 hover:text-brand-orange"
+            >
+              Back to Log In
+            </button>
+          </form>
+        )}
       </div>
+
+      {/* Quick-Read Terms & Conditions Modal */}
+      {showTermsModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-gray-100 overflow-hidden text-gray-900">
+            <div className="px-5 py-4 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+              <div className="flex items-center gap-2 font-bold text-sm">
+                <ShieldCheck className="w-5 h-5 text-brand-orange" />
+                <span>ji.africa Terms &amp; Marketplace Rules</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowTermsModal(false)}
+                className="text-gray-400 hover:text-gray-700"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 max-h-80 overflow-y-auto text-xs text-gray-600 space-y-3 leading-relaxed">
+              <p>
+                <strong>1. Venue Role:</strong> ji.africa provides an online classifieds venue connecting buyers and sellers across Nigeria. Always inspect items in a safe, public place before making payment.
+              </p>
+              <p>
+                <strong>2. Strictly Prohibited Items:</strong> Sellers are strictly forbidden from listing firearms, ammunition, explosives, illicit narcotics, stolen property, counterfeit currency/documents, or hazardous materials. Violations result in immediate account termination and reporting to authorities.
+              </p>
+              <p>
+                <strong>3. Accurate Listings:</strong> All photos, prices, and condition grades (Brand New, Foreign Used/Tokunbo, Nigerian Used) must accurately represent the item.
+              </p>
+              <p>
+                <strong>4. Data &amp; Security (NDPA 2023):</strong> Your contact details are used to display your public shop and send security alerts when new devices access your account.
+              </p>
+            </div>
+
+            <div className="px-5 py-3.5 bg-gray-50 border-t border-gray-100 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowTermsModal(false)}
+                className="px-4 py-2 text-xs font-semibold text-gray-600 hover:text-gray-900"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAcceptedTerms(true);
+                  setShowTermsModal(false);
+                }}
+                className="px-4 py-2 bg-brand-orange text-white text-xs font-bold rounded-lg hover:bg-orange-700 transition"
+              >
+                Accept &amp; Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
