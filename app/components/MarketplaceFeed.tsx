@@ -1,21 +1,22 @@
 "use client";
 
-import { useState, useEffect, useCallback, Suspense } from 'react';
+import { useState, useEffect, useCallback, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   LayoutGrid,
   List,
   MapPin,
-  Tag,
   Heart,
   BadgeCheck,
   Loader2,
   X,
+  SlidersHorizontal,
 } from 'lucide-react';
 import HeroBanner from './HeroBanner';
 import ProductCard from './ProductCard';
 import LocationModal from './LocationModal';
+import { CategoryIcon } from '../lib/categoryIcons';
 
 const API_URL = 'https://ji-africa-backend.onrender.com/api';
 
@@ -50,9 +51,28 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
   const locationLabel = searchParams.get('location') || 'All Nigeria';
   const selectedCategory = searchParams.get('category') || 'all';
 
+  // Jiji-style refinement filters
+  const [minPrice, setMinPrice] = useState('');
+  const [maxPrice, setMaxPrice] = useState('');
+  const [conditionFilter, setConditionFilter] = useState('all');
+  const [sortBy, setSortBy] = useState<'newest' | 'price_asc' | 'price_desc'>('newest');
+  const [showFilters, setShowFilters] = useState(false);
+
   const hasActiveFilters = Boolean(
-    searchQuery || regionId || subRegionId || (selectedCategory && selectedCategory !== 'all')
+    searchQuery ||
+      regionId ||
+      subRegionId ||
+      (selectedCategory && selectedCategory !== 'all') ||
+      minPrice ||
+      maxPrice ||
+      conditionFilter !== 'all'
   );
+
+  const sortedCategories = useMemo(() => {
+    return [...initialCategories].sort(
+      (a, b) => (Number(a.display_order) || 99) - (Number(b.display_order) || 99)
+    );
+  }, [initialCategories]);
 
   const [ads, setAds] = useState<any[]>(initialAds);
   const [page, setPage] = useState(2);
@@ -78,6 +98,10 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
         }
         if (subRegionId) url.searchParams.append('sub_region_id', subRegionId);
         else if (regionId) url.searchParams.append('region_id', regionId);
+        if (minPrice) url.searchParams.append('min_price', minPrice);
+        if (maxPrice) url.searchParams.append('max_price', maxPrice);
+        if (conditionFilter !== 'all') url.searchParams.append('condition', conditionFilter);
+        if (sortBy !== 'newest') url.searchParams.append('sort', sortBy);
 
         const res = await fetch(url.toString());
         if (res.ok) {
@@ -99,19 +123,19 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
         setLoadingMore(false);
       }
     },
-    [searchQuery, selectedCategory, regionId, subRegionId]
+    [searchQuery, selectedCategory, regionId, subRegionId, minPrice, maxPrice, conditionFilter, sortBy]
   );
 
-  // Re-fetch whenever URL filters change
+  // Re-fetch whenever URL or refinement filters change
   useEffect(() => {
-    if (!hasActiveFilters) {
+    if (!hasActiveFilters && sortBy === 'newest') {
       setAds(initialAds);
       setPage(2);
       setHasMoreAds(initialAds.length >= 20);
       return;
     }
     fetchFilteredAds(1, true);
-  }, [hasActiveFilters, initialAds, fetchFilteredAds]);
+  }, [hasActiveFilters, sortBy, initialAds, fetchFilteredAds]);
 
   const updateUrlParams = (updates: Record<string, string>) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -126,21 +150,40 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
   const activeCategoryName =
     selectedCategory === 'all'
       ? 'Trending Ads'
-      : initialCategories.find((c) => String(c.id) === String(selectedCategory))?.name || 'Ads';
+      : sortedCategories.find((c) => String(c.id) === String(selectedCategory))?.name || 'Ads';
 
-  const visibleAds = ads.filter(
-    (a) => a.status !== 'Unavailable' && a.status !== 'unavailable'
-  );
+  // Apply client-side refinement & sort so filtering is instant even on cached pages
+  const visibleAds = useMemo(() => {
+    const filtered = ads.filter((a) => {
+      if (a.status === 'Unavailable' || a.status === 'unavailable') return false;
+      const numericPrice = Number(a.price) || 0;
+      if (minPrice && numericPrice < Number(minPrice)) return false;
+      if (maxPrice && numericPrice > Number(maxPrice)) return false;
+      if (conditionFilter !== 'all') {
+        const adCond = (a.condition || '').toLowerCase();
+        if (!adCond.includes(conditionFilter.toLowerCase())) return false;
+      }
+      return true;
+    });
+
+    if (sortBy === 'price_asc') {
+      return [...filtered].sort((a, b) => (Number(a.price) || 0) - (Number(b.price) || 0));
+    }
+    if (sortBy === 'price_desc') {
+      return [...filtered].sort((a, b) => (Number(b.price) || 0) - (Number(a.price) || 0));
+    }
+    return filtered;
+  }, [ads, minPrice, maxPrice, conditionFilter, sortBy]);
 
   return (
     <div className="flex flex-col lg:flex-row gap-6">
-      {/* Desktop Categories Sidebar */}
+      {/* Desktop Categories Sidebar (All 15 Jiji Categories + Befitting Icons) */}
       <aside className="hidden lg:block w-64 shrink-0">
         <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden sticky top-20">
           <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
             <h3 className="font-bold text-gray-800 text-sm">Categories</h3>
           </div>
-          <ul className="py-2">
+          <ul className="py-1.5 max-h-[calc(100vh-7rem)] overflow-y-auto">
             <li>
               <button
                 type="button"
@@ -151,24 +194,35 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
                     : 'text-gray-600 hover:text-brand-orange hover:bg-orange-50'
                 }`}
               >
-                <LayoutGrid className="w-4 h-4" /> All Ads
+                <LayoutGrid className="w-4 h-4 shrink-0 text-brand-orange" />
+                <span>All Ads</span>
               </button>
             </li>
-            {initialCategories.map((c: any) => (
-              <li key={c.id}>
-                <button
-                  type="button"
-                  onClick={() => updateUrlParams({ category: String(c.id) })}
-                  className={`w-full flex items-center gap-3 text-left px-4 py-2.5 text-xs transition ${
-                    String(selectedCategory) === String(c.id)
-                      ? 'text-brand-orange font-bold bg-orange-50'
-                      : 'text-gray-600 hover:text-brand-orange hover:bg-orange-50'
-                  }`}
-                >
-                  <Tag className="w-4 h-4" /> {c.name}
-                </button>
-              </li>
-            ))}
+            {sortedCategories.map((c: any) => {
+              const isSelected = String(selectedCategory) === String(c.id);
+              return (
+                <li key={c.id}>
+                  <button
+                    type="button"
+                    onClick={() => updateUrlParams({ category: String(c.id) })}
+                    className={`w-full flex items-center gap-3 text-left px-4 py-2.5 text-xs transition ${
+                      isSelected
+                        ? 'text-brand-orange font-bold bg-orange-50'
+                        : 'text-gray-600 hover:text-brand-orange hover:bg-orange-50'
+                    }`}
+                  >
+                    <CategoryIcon
+                      iconName={c.icon}
+                      categoryName={c.name}
+                      className={`w-4 h-4 shrink-0 ${
+                        isSelected ? 'text-brand-orange' : 'text-gray-500'
+                      }`}
+                    />
+                    <span className="truncate">{c.name}</span>
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         </div>
       </aside>
@@ -177,9 +231,9 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
       <div className="flex-1 min-w-0">
         <HeroBanner />
 
-        {/* Mobile Horizontal Category Circles (Replicated from app.js) */}
+        {/* Mobile Horizontal Category Circles with Befitting Icons */}
         <div className="block lg:hidden mb-6 -mx-4 px-4 sm:mx-0 sm:px-0">
-          <div className="flex overflow-x-auto gap-4 pb-2 snap-x snap-mandatory [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+          <div className="flex overflow-x-auto gap-3.5 pb-2 snap-x snap-mandatory [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
             <button
               type="button"
               onClick={() => updateUrlParams({ category: 'all' })}
@@ -203,7 +257,7 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
               </span>
             </button>
 
-            {initialCategories.map((c: any) => {
+            {sortedCategories.map((c: any) => {
               const isSelected = String(selectedCategory) === String(c.id);
               return (
                 <button
@@ -216,17 +270,21 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
                     className={`w-14 h-14 rounded-full flex items-center justify-center shadow-sm transition ${
                       isSelected
                         ? 'bg-orange-50 text-brand-orange border-2 border-brand-orange'
-                        : 'bg-white text-gray-500 border border-gray-100'
+                        : 'bg-white text-gray-600 border border-gray-100'
                     }`}
                   >
-                    <Tag className="w-6 h-6" />
+                    <CategoryIcon
+                      iconName={c.icon}
+                      categoryName={c.name}
+                      className="w-6 h-6"
+                    />
                   </div>
                   <span
                     className={`text-[10px] font-semibold text-center leading-tight line-clamp-2 ${
                       isSelected ? 'text-brand-orange' : 'text-gray-500'
                     }`}
                   >
-                    {c.name.split(' ')[0]}
+                    {c.name.split(',')[0].split('&')[0].trim()}
                   </span>
                 </button>
               );
@@ -275,15 +333,55 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
                 </button>
               </span>
             )}
+            {(minPrice || maxPrice) && (
+              <span className="inline-flex items-center gap-1.5 bg-orange-50 text-brand-orange border border-orange-200 px-3 py-1 rounded-full text-xs font-bold">
+                Price: ₦{minPrice || '0'} – ₦{maxPrice || 'Any'}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMinPrice('');
+                    setMaxPrice('');
+                  }}
+                  className="hover:text-orange-900"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </span>
+            )}
+            {conditionFilter !== 'all' && (
+              <span className="inline-flex items-center gap-1.5 bg-orange-50 text-brand-orange border border-orange-200 px-3 py-1 rounded-full text-xs font-bold">
+                Condition: {conditionFilter}
+                <button
+                  type="button"
+                  onClick={() => setConditionFilter('all')}
+                  className="hover:text-orange-900"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </span>
+            )}
           </div>
         )}
 
-        {/* Feed Header */}
-        <div className="mb-4 flex items-center justify-between">
+        {/* Feed Header & Filter Controls */}
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-base font-bold text-gray-900">
             {searchQuery ? `Results for "${searchQuery}"` : activeCategoryName}
           </h2>
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowFilters((f) => !f)}
+              className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-md border shadow-sm transition ${
+                showFilters || minPrice || maxPrice || conditionFilter !== 'all'
+                  ? 'bg-orange-50 border-brand-orange text-brand-orange'
+                  : 'bg-white border-gray-200 text-gray-700 hover:border-brand-orange'
+              }`}
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5" />
+              <span>Filter &amp; Sort</span>
+            </button>
+
             <button
               type="button"
               onClick={() => setViewMode((m) => (m === 'grid' ? 'list' : 'grid'))}
@@ -299,10 +397,72 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
               className="flex items-center gap-1.5 text-xs text-gray-600 bg-white border border-gray-200 px-3 py-1.5 rounded-md shadow-sm hover:border-brand-orange transition"
             >
               <MapPin className="w-3.5 h-3.5 text-brand-orange" />
-              <span className="font-medium">{locationLabel}</span>
+              <span className="font-medium max-w-[130px] truncate">{locationLabel}</span>
             </button>
           </div>
         </div>
+
+        {/* Collapsible Jiji Price, Condition & Sort Bar */}
+        {showFilters && (
+          <div className="mb-4 bg-white p-3.5 rounded-xl border border-gray-200 shadow-sm grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <div>
+              <label className="block text-[10px] font-bold uppercase text-gray-400 mb-1">
+                Min Price (₦)
+              </label>
+              <input
+                type="number"
+                value={minPrice}
+                onChange={(e) => setMinPrice(e.target.value)}
+                placeholder="e.g. 5000"
+                className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-orange"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-bold uppercase text-gray-400 mb-1">
+                Max Price (₦)
+              </label>
+              <input
+                type="number"
+                value={maxPrice}
+                onChange={(e) => setMaxPrice(e.target.value)}
+                placeholder="e.g. 500000"
+                className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-orange"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-bold uppercase text-gray-400 mb-1">
+                Condition
+              </label>
+              <select
+                value={conditionFilter}
+                onChange={(e) => setConditionFilter(e.target.value)}
+                className="w-full px-2.5 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-orange"
+              >
+                <option value="all">All Conditions</option>
+                <option value="Brand New">Brand New</option>
+                <option value="Foreign Used">Foreign Used (Tokunbo)</option>
+                <option value="Nigerian Used">Nigerian Used</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-bold uppercase text-gray-400 mb-1">
+                Sort By
+              </label>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as any)}
+                className="w-full px-2.5 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-orange"
+              >
+                <option value="newest">Newest First</option>
+                <option value="price_asc">Lowest Price</option>
+                <option value="price_desc">Highest Price</option>
+              </select>
+            </div>
+          </div>
+        )}
 
         {/* Feed Results */}
         {loadingFeed ? (
@@ -394,7 +554,7 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
           </>
         ) : (
           <div className="bg-white p-10 rounded-xl shadow-sm border border-gray-200 text-center text-gray-500 font-medium text-sm">
-            No ads found matching your search or location filter.
+            No ads found matching your search or filter criteria.
           </div>
         )}
       </div>

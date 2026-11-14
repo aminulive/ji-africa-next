@@ -1,199 +1,275 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from 'react';
-import { MapPin, Search, X, ChevronRight, ArrowLeft, Check } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { X, MapPin, ChevronRight, ChevronLeft, Search, Check } from 'lucide-react';
+// @ts-expect-error nigeria-geo-core ships JS without bundled d.ts
+import { getStates, getLGAsByState } from '@some19ice/nigeria-geo-core';
 
-const API_URL = 'https://ji-africa-backend.onrender.com/api';
+interface LocationSelection {
+  regionId: string;
+  subRegionId: string;
+  label: string;
+}
 
 interface LocationModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSelectLocation: (loc: { regionId: string; subRegionId: string; label: string }) => void;
+  onSelectLocation: (selection: LocationSelection) => void;
 }
 
-export default function LocationModal({ isOpen, onClose, onSelectLocation }: LocationModalProps) {
-  const [regions, setRegions] = useState<any[]>([]);
-  const [subRegions, setSubRegions] = useState<any[]>([]);
-  const [search, setSearch] = useState('');
-  const [activeRegion, setActiveRegion] = useState<any>(null);
-  const [loadingLgas, setLoadingLgas] = useState(false);
+interface BackendSubRegion {
+  id: number;
+  name: string;
+}
 
+interface BackendRegion {
+  id: number;
+  name: string;
+  sub_regions?: BackendSubRegion[];
+  SubRegions?: BackendSubRegion[];
+}
+
+interface GeoStateItem {
+  id: string;
+  name: string;
+  lgas: { id: string; name: string }[];
+}
+
+export default function LocationModal({
+  isOpen,
+  onClose,
+  onSelectLocation,
+}: LocationModalProps) {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedState, setSelectedState] = useState<GeoStateItem | null>(null);
+  const [backendRegions, setBackendRegions] = useState<BackendRegion[]>([]);
+
+  // Build complete 36 States + FCT & 774 LGAs list locally for zero-latency browsing
+  const allNigeriaStates: GeoStateItem[] = useMemo(() => {
+    const rawStates = getStates() || [];
+    return rawStates
+      .map((st: { id: string; name: string }) => {
+        const displayName =
+          st.name === 'Federal Capital Territory' ? 'Abuja (FCT)' : st.name;
+        const lgas = (getLGAsByState(st.id) || []).map(
+          (lga: { id: string; name: string }) => ({
+            id: String(lga.id),
+            name: lga.name,
+          })
+        );
+        return {
+          id: String(st.id),
+          name: displayName,
+          lgas,
+        };
+      })
+      .sort((a: GeoStateItem, b: GeoStateItem) => a.name.localeCompare(b.name));
+  }, []);
+
+  // Fetch PostgreSQL Region/SubRegion IDs so URL filters match database IDs
   useEffect(() => {
-    if (!isOpen || regions.length > 0) return;
-    fetch(`${API_URL}/locations/countries/1/regions`)
+    if (!isOpen) return;
+    fetch('https://ji-africa-backend.onrender.com/api/regions')
       .then((res) => (res.ok ? res.json() : []))
       .then((data) => {
-        data.sort((a: any, b: any) => a.name.localeCompare(b.name));
-        setRegions(data);
+        if (Array.isArray(data)) setBackendRegions(data);
+        else if (Array.isArray(data?.regions)) setBackendRegions(data.regions);
       })
-      .catch(() => console.error('Failed to load regions'));
-  }, [isOpen, regions.length]);
+      .catch(() => {});
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setSearchTerm('');
+      setSelectedState(null);
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
-  const handleLoadLgas = async (region: any) => {
-    setActiveRegion(region);
-    setLoadingLgas(true);
-    try {
-      const res = await fetch(`${API_URL}/locations/regions/${region.id}/sub-regions`);
-      const data = res.ok ? await res.json() : [];
-      setSubRegions(data);
-    } catch {
-      setSubRegions([]);
-    } finally {
-      setLoadingLgas(false);
+  const findDbIds = (stateName: string, lgaName?: string) => {
+    const matchedRegion = backendRegions.find(
+      (r) => r.name.trim().toLowerCase() === stateName.trim().toLowerCase()
+    );
+    const regionId = matchedRegion ? String(matchedRegion.id) : '';
+    let subRegionId = '';
+
+    if (matchedRegion && lgaName) {
+      const subs = matchedRegion.sub_regions || matchedRegion.SubRegions || [];
+      const matchedSub = subs.find(
+        (s) => s.name.trim().toLowerCase() === lgaName.trim().toLowerCase()
+      );
+      if (matchedSub) subRegionId = String(matchedSub.id);
     }
+
+    return { regionId, subRegionId };
   };
 
-  const handleClear = () => {
+  const handleSelectAllNigeria = () => {
     onSelectLocation({ regionId: '', subRegionId: '', label: 'All Nigeria' });
-    setActiveRegion(null);
-    setSearch('');
     onClose();
   };
 
-  const handleSelectState = (region: any) => {
+  const handleSelectWholeState = (state: GeoStateItem) => {
+    const { regionId } = findDbIds(state.name);
     onSelectLocation({
-      regionId: String(region.id),
+      regionId,
       subRegionId: '',
-      label: region.name.replace(' State', ''),
+      label: state.name,
     });
-    setActiveRegion(null);
-    setSearch('');
     onClose();
   };
 
-  const handleSelectLga = (sub: any, region: any) => {
+  const handleSelectLGA = (state: GeoStateItem, lgaName: string) => {
+    const { regionId, subRegionId } = findDbIds(state.name, lgaName);
     onSelectLocation({
-      regionId: String(region.id),
-      subRegionId: String(sub.id),
-      label: `${sub.name}, ${region.name.replace(' State', '')}`,
+      regionId,
+      subRegionId,
+      label: `${lgaName}, ${state.name}`,
     });
-    setActiveRegion(null);
-    setSearch('');
     onClose();
   };
 
-  const filteredRegions = regions.filter((r) =>
-    r.name.toLowerCase().includes(search.toLowerCase())
-  );
+  const q = searchTerm.trim().toLowerCase();
+
+  const filteredStates = q
+    ? allNigeriaStates.filter(
+        (st) =>
+          st.name.toLowerCase().includes(q) ||
+          st.lgas.some((l) => l.name.toLowerCase().includes(q))
+      )
+    : allNigeriaStates;
+
+  const filteredLgas = selectedState
+    ? selectedState.lgas.filter((l) => l.name.toLowerCase().includes(q))
+    : [];
 
   return (
-    <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl max-w-5xl w-full p-0 shadow-2xl relative flex flex-col max-h-[85vh] text-gray-900">
-        {/* Modal Header */}
-        <div className="p-4 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white rounded-t-2xl z-10">
-          <button
-            type="button"
-            onClick={handleClear}
-            className="font-bold text-gray-900 hover:text-brand-orange flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-gray-50 transition"
-          >
-            <MapPin className="w-5 h-5 text-brand-orange" /> All Nigeria
-          </button>
-
-          {!activeRegion && (
-            <div className="relative w-72 hidden md:block">
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Find state or LGA..."
-                className="w-full pl-9 pr-3 py-2 bg-gray-100 rounded-lg text-sm outline-none focus:ring-1 focus:ring-brand-orange"
-              />
-              <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
+      <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 w-full max-w-lg overflow-hidden text-gray-900">
+        {/* Header */}
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50">
+          <div className="flex items-center gap-2">
+            {selectedState && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedState(null);
+                  setSearchTerm('');
+                }}
+                className="p-1 rounded-lg hover:bg-gray-200 text-gray-600 transition"
+                title="Back to all states"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+            )}
+            <MapPin className="w-5 h-5 text-brand-orange" />
+            <div>
+              <h3 className="font-bold text-sm text-gray-900">
+                {selectedState ? selectedState.name : 'Select Location'}
+              </h3>
+              <p className="text-[11px] text-gray-500">
+                {selectedState
+                  ? `${selectedState.lgas.length} Local Government Areas`
+                  : '36 States + Abuja (FCT) • 774 LGAs'}
+              </p>
             </div>
-          )}
+          </div>
 
           <button
             type="button"
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 p-2"
+            className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition"
           >
-            <X className="w-6 h-6" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Regions / LGAs Grid */}
-        <div className="p-6 overflow-y-auto bg-gray-50 rounded-b-2xl">
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-            {!activeRegion ? (
-              <>
-                <button
-                  type="button"
-                  onClick={handleClear}
-                  className="col-span-full text-left px-4 py-3 text-sm font-bold text-brand-orange bg-orange-50 border border-orange-200 rounded-xl mb-2 flex items-center justify-between shadow-sm"
-                >
-                  <span>🌐 All Nigeria (Reset Filter)</span>
-                  <Check className="w-4 h-4" />
-                </button>
-
-                {filteredRegions.map((r) => (
-                  <div
-                    key={r.id}
-                    className="flex items-center bg-white border border-gray-200 hover:border-brand-orange rounded-xl overflow-hidden transition group"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => handleSelectState(r)}
-                      className="flex-1 text-left px-4 py-3 text-sm font-semibold text-gray-700 group-hover:text-brand-orange truncate"
-                    >
-                      {r.name}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleLoadLgas(r)}
-                      className="px-3 py-3 text-gray-400 hover:text-brand-orange hover:bg-gray-50 border-l border-gray-100 transition"
-                      title="View LGAs"
-                    >
-                      <ChevronRight className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
-              </>
-            ) : (
-              <>
-                <div className="col-span-full flex items-center justify-between mb-2">
-                  <button
-                    type="button"
-                    onClick={() => setActiveRegion(null)}
-                    className="text-xs font-bold text-brand-orange flex items-center gap-1 hover:underline"
-                  >
-                    <ArrowLeft className="w-4 h-4" /> Back to all states
-                  </button>
-                  <span className="text-xs font-bold text-gray-500 uppercase">
-                    {activeRegion.name}
-                  </span>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => handleSelectState(activeRegion)}
-                  className="col-span-full text-left px-4 py-3 text-sm font-bold text-gray-900 bg-orange-50 border border-orange-200 rounded-xl mb-2 flex items-center justify-between"
-                >
-                  <span>All {activeRegion.name}</span>
-                  <Check className="w-4 h-4 text-brand-orange" />
-                </button>
-
-                {loadingLgas ? (
-                  <div className="col-span-full py-8 text-center text-gray-400 font-medium">
-                    Loading LGAs for {activeRegion.name}...
-                  </div>
-                ) : (
-                  subRegions.map((sr) => (
-                    <button
-                      key={sr.id}
-                      type="button"
-                      onClick={() => handleSelectLga(sr, activeRegion)}
-                      className="text-left px-4 py-3 text-sm font-semibold text-gray-700 bg-white border border-gray-200 hover:border-brand-orange hover:text-brand-orange rounded-xl transition flex justify-between items-center"
-                    >
-                      <span className="truncate">{sr.name}</span>
-                      <MapPin className="w-3.5 h-3.5 text-gray-300 shrink-0" />
-                    </button>
-                  ))
-                )}
-              </>
-            )}
+        {/* Search Box */}
+        <div className="p-4 border-b border-gray-100">
+          <div className="relative">
+            <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-3" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder={
+                selectedState
+                  ? `Search LGAs in ${selectedState.name}...`
+                  : 'Search state or LGA (e.g., Ikeja, Kaduna, Wuse)...'
+              }
+              className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-brand-orange transition"
+            />
           </div>
+        </div>
+
+        {/* List Body */}
+        <div className="max-h-80 overflow-y-auto divide-y divide-gray-100">
+          {!selectedState ? (
+            <>
+              <button
+                type="button"
+                onClick={handleSelectAllNigeria}
+                className="w-full px-5 py-3 text-left text-sm font-bold text-brand-orange hover:bg-orange-50 flex items-center justify-between transition"
+              >
+                <span>All Nigeria</span>
+                <Check className="w-4 h-4" />
+              </button>
+
+              {filteredStates.map((state) => (
+                <button
+                  key={state.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedState(state);
+                    setSearchTerm('');
+                  }}
+                  className="w-full px-5 py-3 text-left text-sm font-medium text-gray-700 hover:bg-orange-50 hover:text-brand-orange flex items-center justify-between transition"
+                >
+                  <span>{state.name}</span>
+                  <span className="flex items-center gap-1 text-xs text-gray-400">
+                    {state.lgas.length} LGAs
+                    <ChevronRight className="w-4 h-4" />
+                  </span>
+                </button>
+              ))}
+
+              {filteredStates.length === 0 && (
+                <p className="px-5 py-8 text-center text-xs text-gray-400">
+                  No state or LGA matched &ldquo;{searchTerm}&rdquo;.
+                </p>
+              )}
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => handleSelectWholeState(selectedState)}
+                className="w-full px-5 py-3 text-left text-sm font-bold text-brand-orange hover:bg-orange-50 flex items-center justify-between transition"
+              >
+                <span>All of {selectedState.name}</span>
+                <Check className="w-4 h-4" />
+              </button>
+
+              {filteredLgas.map((lga) => (
+                <button
+                  key={lga.id}
+                  type="button"
+                  onClick={() => handleSelectLGA(selectedState, lga.name)}
+                  className="w-full px-5 py-3 text-left text-sm text-gray-700 hover:bg-orange-50 hover:text-brand-orange flex items-center justify-between transition"
+                >
+                  <span>{lga.name}</span>
+                  <ChevronRight className="w-4 h-4 text-gray-300" />
+                </button>
+              ))}
+
+              {filteredLgas.length === 0 && (
+                <p className="px-5 py-8 text-center text-xs text-gray-400">
+                  No LGA matched &ldquo;{searchTerm}&rdquo; in {selectedState.name}.
+                </p>
+              )}
+            </>
+          )}
         </div>
       </div>
     </div>
