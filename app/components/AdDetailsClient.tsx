@@ -18,8 +18,14 @@ import {
   Layers,
   Slash,
   CheckCircle2,
+  Flag,
+  X,
+  Loader2,
+  Star,
 } from 'lucide-react';
 import ProductCard from './ProductCard';
+
+const API_URL = 'https://ji-africa-backend.onrender.com/api';
 
 function formatPhoneNG(phone: string) {
   if (!phone) return '';
@@ -50,14 +56,28 @@ export default function AdDetailsClient({
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [toast, setToast] = useState('');
 
-  // Buyer Reviews State (persisted in localStorage under 'ji_reviews')
+  // Animated Click-to-Fill Star Reviews State
   const [reviews, setReviews] = useState<any[]>([]);
   const [rating, setRating] = useState(5);
+  const [hoverRating, setHoverRating] = useState(0);
   const [comment, setComment] = useState('');
+
+  // Request Callback Modal State
+  const [showCallbackModal, setShowCallbackModal] = useState(false);
+  const [cbName, setCbName] = useState('');
+  const [cbPhone, setCbPhone] = useState('');
+  const [cbMessage, setCbMessage] = useState('');
+  const [sendingCallback, setSendingCallback] = useState(false);
+
+  // Report Ad Modal State
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportReason, setReportReason] = useState('Suspected scam or fraud');
+  const [reportDetails, setReportDetails] = useState('');
+  const [sendingReport, setSendingReport] = useState(false);
 
   const notify = (msg: string) => {
     setToast(msg);
-    setTimeout(() => setToast(''), 3000);
+    setTimeout(() => setToast(''), 3200);
   };
 
   // Parse images safely
@@ -75,11 +95,24 @@ export default function AdDetailsClient({
     }
   }
 
+  // Record unique session view on backend
+  useEffect(() => {
+    if (!ad?.id || typeof window === 'undefined') return;
+    const viewKey = `ji_viewed_ad_${ad.id}`;
+    if (!sessionStorage.getItem(viewKey)) {
+      sessionStorage.setItem(viewKey, '1');
+      fetch(`${API_URL}/ads/${ad.id}/view`, { method: 'POST' }).catch(() => {});
+    }
+  }, [ad?.id]);
+
   useEffect(() => {
     const storedUser = localStorage.getItem('ji_user');
     if (storedUser) {
       try {
-        setCurrentUser(JSON.parse(storedUser));
+        const parsed = JSON.parse(storedUser);
+        setCurrentUser(parsed);
+        if (parsed.full_name) setCbName(parsed.full_name);
+        if (parsed.phone) setCbPhone(parsed.phone);
       } catch {}
     }
 
@@ -120,6 +153,18 @@ export default function AdDetailsClient({
       localStorage.setItem('ji_wishlist', JSON.stringify(list));
       setIsSaved(idx === -1);
       window.dispatchEvent(new Event('ji_wishlist_updated'));
+
+      const token = localStorage.getItem('ji_token');
+      if (token) {
+        fetch(`${API_URL}/users/wishlist/toggle`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ ad_id: Number(ad.id) }),
+        }).catch(() => {});
+      }
     } catch {}
   };
 
@@ -139,6 +184,62 @@ export default function AdDetailsClient({
     }
   };
 
+  const handleRequestCallback = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!cbName.trim() || !cbPhone.trim()) return;
+    setSendingCallback(true);
+
+    try {
+      const res = await fetch(`${API_URL}/ads/${ad.id}/callback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          buyer_name: cbName.trim(),
+          buyer_phone: cbPhone.trim(),
+          message: cbMessage.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        notify('Callback request sent to seller!');
+        setShowCallbackModal(false);
+        setCbMessage('');
+      } else {
+        notify(data.error || 'Could not send callback request');
+      }
+    } catch {
+      notify('Network error sending callback');
+    } finally {
+      setSendingCallback(false);
+    }
+  };
+
+  const handleSubmitReport = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSendingReport(true);
+    try {
+      const res = await fetch(`${API_URL}/ads/${ad.id}/report`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reason: reportReason,
+          details: reportDetails.trim(),
+        }),
+      });
+      if (res.ok) {
+        notify('Report submitted to ji.africa moderators.');
+        setShowReportModal(false);
+        setReportDetails('');
+      } else {
+        notify('Could not submit report');
+      }
+    } catch {
+      notify('Network error submitting report');
+    } finally {
+      setSendingReport(false);
+    }
+  };
+
   const handleSubmitReview = (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUser || !comment.trim()) return;
@@ -154,6 +255,7 @@ export default function AdDetailsClient({
     const updated = [newReview, ...reviews];
     setReviews(updated);
     setComment('');
+    setRating(5);
 
     try {
       const all = JSON.parse(localStorage.getItem('ji_reviews') || '{}');
@@ -169,7 +271,7 @@ export default function AdDetailsClient({
   const whatsappLink = `https://wa.me/${formattedPhone.replace('+', '')}?text=${encodeURIComponent(
     `Hello, I saw your ad on ji.africa: "${ad.title}"`
   )}`;
-  const isUnavailable = ad.status === 'Unavailable' || ad.status === 'unavailable';
+  const isUnavailable = ad.status === 'Unavailable' || ad.status === 'unavailable' || ad.status === 'Sold';
 
   const prevImage = () =>
     setCurrentImageIndex((i) => (i - 1 + images.length) % images.length);
@@ -178,7 +280,6 @@ export default function AdDetailsClient({
 
   return (
     <div className="max-w-6xl mx-auto pb-12">
-      {/* Toast Notification */}
       {toast && (
         <div className="fixed bottom-5 right-5 z-50 flex items-center gap-2 bg-gray-900 text-white px-4 py-3 rounded-xl shadow-xl text-xs font-bold">
           <CheckCircle2 className="w-4 h-4 text-brand-orange" />
@@ -202,9 +303,8 @@ export default function AdDetailsClient({
       </div>
 
       <div className="flex flex-col lg:flex-row gap-6">
-        {/* Left Column: Images, Specs & Buyer Reviews */}
+        {/* Left Column: Images, Specs & Animated Buyer Reviews */}
         <div className="flex-1 space-y-6 min-w-0">
-          {/* Interactive Main Image Gallery */}
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
             <div className="relative bg-gray-950 aspect-[4/3] flex items-center justify-center group">
               <img
@@ -251,16 +351,15 @@ export default function AdDetailsClient({
             )}
           </div>
 
-          {/* Availability / Post Similar Callout */}
           {isUnavailable ? (
             <div className="flex items-center gap-3 bg-red-50 border border-red-200 p-4 rounded-xl">
               <Slash className="w-6 h-6 text-red-600 shrink-0" />
               <div>
                 <p className="text-sm font-bold text-red-800">
-                  This ad is temporarily unavailable
+                  This item is currently marked as {ad.status}
                 </p>
                 <p className="text-xs text-red-600 mt-0.5">
-                  The seller has marked this item as currently out of stock or unavailable.
+                  The seller has marked this item as sold or temporarily unavailable.
                 </p>
               </div>
             </div>
@@ -336,7 +435,7 @@ export default function AdDetailsClient({
             )}
           </div>
 
-          {/* Buyer Reviews Section (Replicated from app.js) */}
+          {/* Buyer Reviews Section with Animated Click-to-Fill Stars */}
           <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
             <h3 className="text-lg font-bold text-gray-900 mb-4">
               Buyer Reviews ({reviews.length})
@@ -347,21 +446,36 @@ export default function AdDetailsClient({
                 onSubmit={handleSubmitReview}
                 className="mb-6 pb-6 border-b border-gray-100"
               >
-                <h4 className="text-sm font-bold mb-2 text-gray-800">
-                  Leave a review
-                </h4>
                 <div className="mb-3">
-                  <select
-                    value={rating}
-                    onChange={(e) => setRating(Number(e.target.value))}
-                    className="bg-gray-50 border border-gray-200 text-sm font-medium rounded-lg px-3 py-2 outline-none focus:border-brand-orange transition"
-                  >
-                    <option value={5}>⭐⭐⭐⭐⭐ 5 - Excellent</option>
-                    <option value={4}>⭐⭐⭐⭐ 4 - Good</option>
-                    <option value={3}>⭐⭐⭐ 3 - Average</option>
-                    <option value={2}>⭐⭐ 2 - Fair</option>
-                    <option value={1}>⭐ 1 - Poor</option>
-                  </select>
+                  <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1.5">
+                    Tap a Star to Rate
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    {[1, 2, 3, 4, 5].map((star) => {
+                      const active = (hoverRating || rating) >= star;
+                      return (
+                        <button
+                          key={star}
+                          type="button"
+                          onMouseEnter={() => setHoverRating(star)}
+                          onMouseLeave={() => setHoverRating(0)}
+                          onClick={() => setRating(star)}
+                          className="p-0.5 transition-transform duration-150 hover:scale-125 active:scale-95 focus:outline-none"
+                        >
+                          <Star
+                            className={`w-6 h-6 transition-all duration-150 ${
+                              active
+                                ? 'text-amber-400 fill-amber-400 drop-shadow-sm'
+                                : 'text-gray-300'
+                            }`}
+                          />
+                        </button>
+                      );
+                    })}
+                    <span className="ml-2 text-xs font-bold text-gray-600">
+                      {rating}/5
+                    </span>
+                  </div>
                 </div>
                 <textarea
                   required
@@ -416,9 +530,17 @@ export default function AdDetailsClient({
                         </span>
                         <span className="text-xs text-gray-400">{r.date}</span>
                       </div>
-                      <div className="text-amber-400 text-xs my-0.5">
-                        {'★'.repeat(r.rating)}
-                        {'☆'.repeat(5 - r.rating)}
+                      <div className="flex items-center gap-0.5 my-1">
+                        {[1, 2, 3, 4, 5].map((s) => (
+                          <Star
+                            key={s}
+                            className={`w-3.5 h-3.5 ${
+                              s <= Number(r.rating || 5)
+                                ? 'text-amber-400 fill-amber-400'
+                                : 'text-gray-200'
+                            }`}
+                          />
+                        ))}
                       </div>
                       <p className="text-sm text-gray-600 mt-1">{r.comment}</p>
                     </div>
@@ -429,9 +551,8 @@ export default function AdDetailsClient({
           </div>
         </div>
 
-        {/* Right Column: Price, Contact, Seller Shop & Safety Tips */}
+        {/* Right Column: Price, Contact, Callback, Seller Shop & Safety */}
         <div className="w-full lg:w-[360px] space-y-4 shrink-0">
-          {/* Price & Actions Card */}
           <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm sticky top-20">
             <h2 className="text-3xl font-black text-gray-900 mb-1">
               {formatNaira(ad.price)}
@@ -442,7 +563,7 @@ export default function AdDetailsClient({
               </p>
             )}
 
-            <div className="space-y-3 mt-4">
+            <div className="space-y-2.5 mt-4">
               <button
                 type="button"
                 disabled={isUnavailable}
@@ -475,11 +596,20 @@ export default function AdDetailsClient({
                 <MessageCircle className="w-5 h-5" /> Chat on WhatsApp
               </a>
 
-              <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                disabled={isUnavailable}
+                onClick={() => setShowCallbackModal(true)}
+                className="w-full bg-gray-900 hover:bg-gray-800 text-white py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition disabled:opacity-50"
+              >
+                <PhoneCall className="w-4 h-4 text-brand-orange" /> Request Seller Callback
+              </button>
+
+              <div className="grid grid-cols-2 gap-2.5 pt-1">
                 <button
                   type="button"
                   onClick={handleToggleSave}
-                  className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-sm transition"
+                  className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition"
                 >
                   <Heart
                     className={`w-4 h-4 ${
@@ -491,7 +621,7 @@ export default function AdDetailsClient({
                 <button
                   type="button"
                   onClick={handleShare}
-                  className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-sm transition"
+                  className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition"
                 >
                   <Share2 className="w-4 h-4" /> Share
                 </button>
@@ -531,9 +661,9 @@ export default function AdDetailsClient({
             </div>
           </Link>
 
-          {/* Safety Warning */}
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-5">
-            <h3 className="text-xs font-bold text-amber-900 mb-3 flex items-center gap-2">
+          {/* Safety Warning + Report Ad */}
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 space-y-3">
+            <h3 className="text-xs font-bold text-amber-900 flex items-center gap-2">
               <ShieldAlert className="w-4 h-4" /> Safety tips
             </h3>
             <ul className="text-[11px] text-amber-800 space-y-2 list-disc pl-4 marker:text-amber-400">
@@ -542,11 +672,20 @@ export default function AdDetailsClient({
               <li>Inspect the item to ensure it matches the description.</li>
               <li>Pay only if you are satisfied.</li>
             </ul>
+            <div className="pt-2 border-t border-amber-200/70">
+              <button
+                type="button"
+                onClick={() => setShowReportModal(true)}
+                className="w-full py-2 bg-white hover:bg-red-50 text-red-600 border border-red-200 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition"
+              >
+                <Flag className="w-3.5 h-3.5" /> Report This Advert
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Similar Items You Might Like (Replicated from app.js) */}
+      {/* Similar Items You Might Like */}
       {similarAds.length > 0 && (
         <div className="mt-12 pt-10 border-t border-gray-200">
           <h3 className="text-xl font-black text-gray-900 mb-6 flex items-center gap-2">
@@ -556,6 +695,134 @@ export default function AdDetailsClient({
             {similarAds.map((item) => (
               <ProductCard key={item.id} ad={item} />
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* REQUEST CALLBACK MODAL */}
+      {showCallbackModal && (
+        <div className="fixed inset-0 bg-gray-900/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-md rounded-2xl overflow-hidden shadow-2xl border border-gray-200">
+            <div className="p-4 bg-gray-900 text-white flex items-center justify-between">
+              <h3 className="font-black text-sm flex items-center gap-2">
+                <PhoneCall className="w-4 h-4 text-brand-orange" /> Request a Callback
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowCallbackModal(false)}
+                className="text-gray-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleRequestCallback} className="p-5 space-y-3.5">
+              <p className="text-xs text-gray-500">
+                Leave your phone number and the seller of <span className="font-bold text-gray-800">{ad.title}</span> will call you back shortly.
+              </p>
+              <div>
+                <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1">
+                  Your Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={cbName}
+                  onChange={(e) => setCbName(e.target.value)}
+                  placeholder="e.g. Chinedu Okafor"
+                  className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-sm outline-none focus:border-brand-orange"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1">
+                  Your Phone Number *
+                </label>
+                <input
+                  type="tel"
+                  required
+                  value={cbPhone}
+                  onChange={(e) => setCbPhone(e.target.value)}
+                  placeholder="e.g. 08012345678"
+                  className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-sm outline-none focus:border-brand-orange"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1">
+                  Note (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={cbMessage}
+                  onChange={(e) => setCbMessage(e.target.value)}
+                  placeholder="e.g. Is the price still negotiable?"
+                  className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-sm outline-none focus:border-brand-orange"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={sendingCallback}
+                className="w-full py-3 bg-brand-orange hover:bg-orange-700 text-white rounded-xl text-xs font-black flex items-center justify-center gap-2 disabled:opacity-60"
+              >
+                {sendingCallback && <Loader2 className="w-4 h-4 animate-spin" />}
+                Send Callback Request
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* REPORT AD MODAL */}
+      {showReportModal && (
+        <div className="fixed inset-0 bg-gray-900/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-md rounded-2xl overflow-hidden shadow-2xl border border-gray-200">
+            <div className="p-4 bg-red-600 text-white flex items-center justify-between">
+              <h3 className="font-black text-sm flex items-center gap-2">
+                <Flag className="w-4 h-4" /> Report Suspicious Advert
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowReportModal(false)}
+                className="text-red-100 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleSubmitReport} className="p-5 space-y-3.5">
+              <div>
+                <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1">
+                  Reason *
+                </label>
+                <select
+                  value={reportReason}
+                  onChange={(e) => setReportReason(e.target.value)}
+                  className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-sm bg-white outline-none focus:border-red-500"
+                >
+                  <option value="Suspected scam or fraud">Suspected scam or fraud</option>
+                  <option value="Prohibited or illegal item">Prohibited or illegal item</option>
+                  <option value="Item already sold / fake listing">Item already sold / fake listing</option>
+                  <option value="Wrong category or misleading price">Wrong category or misleading price</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1">
+                  Additional Details
+                </label>
+                <textarea
+                  rows={3}
+                  value={reportDetails}
+                  onChange={(e) => setReportDetails(e.target.value)}
+                  placeholder="Provide any details to help our moderation team..."
+                  className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-sm outline-none focus:border-red-500"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={sendingReport}
+                className="w-full py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-black flex items-center justify-center gap-2 disabled:opacity-60"
+              >
+                {sendingReport && <Loader2 className="w-4 h-4 animate-spin" />}
+                Submit Report to Moderators
+              </button>
+            </form>
           </div>
         </div>
       )}
