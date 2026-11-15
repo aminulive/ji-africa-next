@@ -12,6 +12,8 @@ import {
   AlertCircle,
   ZoomIn,
   ZoomOut,
+  MailCheck,
+  RefreshCw,
 } from 'lucide-react';
 
 const API_URL = 'https://ji-africa-backend.onrender.com/api';
@@ -28,6 +30,13 @@ export default function ProfilePage() {
   const [user, setUser] = useState<any>(null);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  // Inline Email Verification State
+  const [sendingOtp, setSendingOtp] = useState(false);
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpInput, setOtpInput] = useState('');
+  const [cooldown, setCooldown] = useState(0);
 
   // Form Fields
   const [fullName, setFullName] = useState('');
@@ -63,8 +72,14 @@ export default function ProfilePage() {
 
   const notify = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type });
-    setTimeout(() => setToast(null), 3000);
+    setTimeout(() => setToast(null), 3500);
   };
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const t = setTimeout(() => setCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [cooldown]);
 
   useEffect(() => {
     const token = localStorage.getItem('ji_token');
@@ -97,6 +112,59 @@ export default function ProfilePage() {
       router.push('/login');
     }
   }, [router]);
+
+  const handleSendVerificationCode = async () => {
+    if (!user?.email || sendingOtp || cooldown > 0) return;
+    setSendingOtp(true);
+    try {
+      const res = await fetch(`${API_URL}/auth/resend-verification`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: user.email }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setOtpSent(true);
+        setCooldown(30);
+        notify(`6-digit code sent to ${user.email}`, 'success');
+      } else {
+        notify(data.error || 'Could not send verification code.', 'error');
+      }
+    } catch {
+      notify('Network error while sending code.', 'error');
+    } finally {
+      setSendingOtp(false);
+    }
+  };
+
+  const handleConfirmEmailOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user?.email || otpInput.length !== 6 || verifyingOtp) return;
+    setVerifyingOtp(true);
+    try {
+      const res = await fetch(`${API_URL}/auth/verify-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: user.email, code: otpInput }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        const updatedUser = data.user ? data.user : { ...user, is_email_verified: true };
+        setUser(updatedUser);
+        localStorage.setItem('ji_user', JSON.stringify(updatedUser));
+        window.dispatchEvent(new Event('ji_user_updated'));
+        setOtpSent(false);
+        setOtpInput('');
+        notify('Email verified! Your Email Verified trust badge is now active.', 'success');
+      } else {
+        notify(data.error || 'Invalid verification code.', 'error');
+      }
+    } catch {
+      notify('Network error while verifying email.', 'error');
+    } finally {
+      setVerifyingOtp(false);
+    }
+  };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>, target: 'profile' | 'banner') => {
     const file = e.target.files?.[0];
@@ -248,6 +316,61 @@ export default function ProfilePage() {
         <ArrowLeft className="w-4 h-4" /> Back
       </Link>
 
+      {/* Unverified Email Action Prompt */}
+      {!user.is_email_verified && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 text-amber-900 font-bold text-sm">
+              <MailCheck className="w-4 h-4 text-brand-orange shrink-0" />
+              <span>Verify your email address to unlock your Email Verified trust badge</span>
+            </div>
+            <p className="text-xs text-amber-800">
+              We&apos;ll send a 6-digit verification code to <strong>{user.email}</strong>.
+            </p>
+          </div>
+
+          {!otpSent ? (
+            <button
+              type="button"
+              onClick={handleSendVerificationCode}
+              disabled={sendingOtp}
+              className="px-4 py-2.5 bg-brand-orange hover:bg-orange-700 text-white rounded-xl text-xs font-bold shadow-sm transition inline-flex items-center justify-center gap-1.5 shrink-0 disabled:opacity-60"
+            >
+              {sendingOtp && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+              {sendingOtp ? 'Sending Code...' : 'Send 6-Digit Code'}
+            </button>
+          ) : (
+            <form onSubmit={handleConfirmEmailOtp} className="flex items-center gap-2 shrink-0">
+              <input
+                type="text"
+                maxLength={6}
+                required
+                value={otpInput}
+                onChange={(e) => setOtpInput(e.target.value.replace(/\D/g, ''))}
+                placeholder="000000"
+                className="w-28 px-3 py-2 bg-white border border-amber-300 rounded-lg text-center text-sm font-black tracking-widest outline-none focus:border-brand-orange"
+              />
+              <button
+                type="submit"
+                disabled={verifyingOtp || otpInput.length !== 6}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition disabled:opacity-60"
+              >
+                {verifyingOtp ? 'Verifying...' : 'Confirm'}
+              </button>
+              <button
+                type="button"
+                disabled={cooldown > 0 || sendingOtp}
+                onClick={handleSendVerificationCode}
+                title="Resend code"
+                className="p-2 text-amber-800 hover:text-brand-orange disabled:opacity-40"
+              >
+                <RefreshCw className={`w-4 h-4 ${sendingOtp ? 'animate-spin' : ''}`} />
+              </button>
+            </form>
+          )}
+        </div>
+      )}
+
       {/* Top Profile Header Card */}
       <div className="bg-white rounded-2xl p-8 border border-gray-200 shadow-sm flex items-center gap-6 relative overflow-hidden">
         {user.is_verified && (
@@ -259,11 +382,16 @@ export default function ProfilePage() {
           <img src={profilePreview} alt={user.full_name} className="w-full h-full object-cover" />
         </div>
         <div>
-          <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-            {user.full_name}
+          <h2 className="text-xl font-bold text-gray-900 flex flex-wrap items-center gap-2">
+            <span>{user.full_name}</span>
             {user.is_verified && <BadgeCheck className="w-5 h-5 text-blue-500" />}
+            {user.is_email_verified && (
+              <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-0.5 rounded-full text-[11px] font-bold">
+                <CheckCircle2 className="w-3.5 h-3.5" /> Email Verified
+              </span>
+            )}
           </h2>
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-gray-500 mt-0.5">
             {user.email} {user.username ? `• @${user.username}` : ''}
           </p>
           <div className="flex flex-wrap gap-2 mt-3">

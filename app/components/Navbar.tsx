@@ -16,9 +16,12 @@ import {
   Shield,
   LogOut,
   X,
+  CheckCheck,
 } from 'lucide-react';
 import { useEffect, useState, useRef, useCallback, Suspense } from 'react';
 import LocationModal from './LocationModal';
+
+const API_URL = 'https://ji-africa-backend.onrender.com/api';
 
 function NavbarContent() {
   const router = useRouter();
@@ -33,6 +36,13 @@ function NavbarContent() {
   );
   const [showLocationModal, setShowLocationModal] = useState(false);
 
+  // Notifications State
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const notifMenuRef = useRef<HTMLDivElement>(null);
+
+  // Profile Dropdown State
   const [menuOpen, setMenuOpen] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement>(null);
 
@@ -40,6 +50,9 @@ function NavbarContent() {
     const handleOutsideClick = (e: MouseEvent | TouchEvent) => {
       if (profileMenuRef.current && !profileMenuRef.current.contains(e.target as Node)) {
         setMenuOpen(false);
+      }
+      if (notifMenuRef.current && !notifMenuRef.current.contains(e.target as Node)) {
+        setNotifOpen(false);
       }
     };
     document.addEventListener('mousedown', handleOutsideClick);
@@ -77,24 +90,74 @@ function NavbarContent() {
     setLocationLabel(searchParams.get('location') || 'All Nigeria');
   }, [searchParams]);
 
+  const fetchNotifications = useCallback(async () => {
+    const token = localStorage.getItem('ji_token');
+    if (!token) {
+      setNotifications([]);
+      setUnreadCount(0);
+      return;
+    }
+    try {
+      const res = await fetch(`${API_URL}/users/notifications`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setNotifications(data.notifications || []);
+        setUnreadCount(Number(data.unreadCount) || 0);
+      }
+    } catch {
+      // Silent fallback if backend is cold-starting
+    }
+  }, []);
+
   useEffect(() => {
     const syncUser = () => {
       const storedUser = localStorage.getItem('ji_user');
       if (storedUser) {
         try {
           setUser(JSON.parse(storedUser));
+          fetchNotifications();
         } catch {
           console.error('Failed to parse user session');
         }
       } else {
         setUser(null);
+        setNotifications([]);
+        setUnreadCount(0);
       }
     };
 
     syncUser();
     window.addEventListener('ji_user_updated', syncUser);
     return () => window.removeEventListener('ji_user_updated', syncUser);
-  }, []);
+  }, [fetchNotifications]);
+
+  const handleMarkNotificationsRead = async (notifId?: number) => {
+    const token = localStorage.getItem('ji_token');
+    if (!token) return;
+    try {
+      await fetch(`${API_URL}/users/notifications/read`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(notifId ? { id: notifId } : {}),
+      });
+      if (notifId) {
+        setNotifications((prev) =>
+          prev.map((n) => (n.id === notifId ? { ...n, is_read: true } : n))
+        );
+        setUnreadCount((c) => Math.max(0, c - 1));
+      } else {
+        setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+        setUnreadCount(0);
+      }
+    } catch {
+      // Ignore transient network errors
+    }
+  };
 
   const handleLogout = () => {
     localStorage.removeItem('ji_user');
@@ -264,23 +327,85 @@ function NavbarContent() {
               >
                 <Heart className="w-[1.15rem] h-[1.15rem]" />
               </Link>
-              <button
-                type="button"
+
+              <Link
+                href="/dashboard/seller"
                 className="text-gray-500 hover:text-brand-orange transition hidden sm:block"
-                title="Messages"
+                title="Seller Inquiries & Ads"
               >
                 <MessageSquare className="w-[1.15rem] h-[1.15rem]" />
-              </button>
-              <button
-                type="button"
-                className="text-gray-500 hover:text-brand-orange transition relative"
-                title="Notifications"
-              >
-                <Bell className="w-[1.15rem] h-[1.15rem]" />
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[8px] font-bold w-3.5 h-3.5 rounded-full flex items-center justify-center border border-white">
-                  2
-                </span>
-              </button>
+              </Link>
+
+              {/* Live Notifications Bell & Popover */}
+              <div ref={notifMenuRef} className="relative">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!user) {
+                      router.push('/login');
+                      return;
+                    }
+                    setNotifOpen((prev) => !prev);
+                    setMenuOpen(false);
+                  }}
+                  className="text-gray-500 hover:text-brand-orange transition relative flex items-center"
+                  title="Notifications"
+                >
+                  <Bell className="w-[1.15rem] h-[1.15rem]" />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[8px] font-bold min-w-[14px] h-3.5 px-1 rounded-full flex items-center justify-center border border-white">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  )}
+                </button>
+
+                {notifOpen && user && (
+                  <div className="absolute top-full right-0 mt-2 w-80 z-50 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden text-gray-900">
+                    <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+                      <span className="font-bold text-xs text-gray-900">Notifications</span>
+                      {unreadCount > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => handleMarkNotificationsRead()}
+                          className="text-[11px] font-bold text-brand-orange hover:underline inline-flex items-center gap-1"
+                        >
+                          <CheckCheck className="w-3.5 h-3.5" /> Mark all read
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="max-h-72 overflow-y-auto divide-y divide-gray-100">
+                      {notifications.length > 0 ? (
+                        notifications.map((n: any) => (
+                          <div
+                            key={n.id}
+                            onClick={() => {
+                              if (!n.is_read) handleMarkNotificationsRead(n.id);
+                              setNotifOpen(false);
+                              if (n.link) router.push(n.link);
+                            }}
+                            className={`px-4 py-3 text-xs cursor-pointer transition hover:bg-orange-50/60 ${
+                              !n.is_read ? 'bg-orange-50/40' : 'bg-white'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <p className="font-bold text-gray-900">{n.title}</p>
+                              {!n.is_read && (
+                                <span className="w-2 h-2 rounded-full bg-brand-orange shrink-0 mt-1" />
+                              )}
+                            </div>
+                            <p className="text-gray-600 mt-0.5 leading-relaxed">{n.message}</p>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="px-4 py-8 text-center text-xs text-gray-400">
+                          No notifications yet.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {/* Tap & Click Profile Dropdown */}
               <div ref={profileMenuRef} className="relative pl-1 border-l border-gray-200">
@@ -288,7 +413,10 @@ function NavbarContent() {
                   <div className="ml-1">
                     <button
                       type="button"
-                      onClick={() => setMenuOpen((prev) => !prev)}
+                      onClick={() => {
+                        setMenuOpen((prev) => !prev);
+                        setNotifOpen(false);
+                      }}
                       aria-expanded={menuOpen}
                       className="flex items-center gap-2 transition cursor-pointer py-1 focus:outline-none"
                     >

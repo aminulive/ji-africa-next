@@ -206,9 +206,27 @@ function SellFormContent() {
               const matchedReg = regData.find(
                 (r: any) => String(r.id) === String(adData.region_id)
               );
-              if (matchedReg) setDisplayLocation(matchedReg.name.replace(' State', ''));
+              const cleanState = matchedReg ? matchedReg.name.replace(/\s*State$/i, '') : '';
+              if (adData.sub_region_id) {
+                setSubRegionId(String(adData.sub_region_id));
+                try {
+                  const subRes = await fetch(`${API_URL}/locations/regions/${adData.region_id}/sub-regions`);
+                  const subList = subRes.ok ? await subRes.json() : [];
+                  const matchedSub = subList.find(
+                    (s: any) => String(s.id) === String(adData.sub_region_id)
+                  );
+                  if (matchedSub && cleanState) {
+                    setDisplayLocation(`${matchedSub.name}, ${cleanState}`);
+                  } else if (cleanState) {
+                    setDisplayLocation(cleanState);
+                  }
+                } catch {
+                  if (cleanState) setDisplayLocation(cleanState);
+                }
+              } else if (cleanState) {
+                setDisplayLocation(cleanState);
+              }
             }
-            if (adData.sub_region_id) setSubRegionId(String(adData.sub_region_id));
 
             setStatus(adData.status || 'Available');
             setExternalLink(adData.youtube_link || '');
