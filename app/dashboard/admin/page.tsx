@@ -141,6 +141,20 @@ export default function AdminDashboardPage() {
   }, [router, adFilter, userSearch]);
 
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      const sp = new URLSearchParams(window.location.search);
+      const tabParam = sp.get("tab");
+      if (tabParam && ["moderation", "users", "blog", "messages"].includes(tabParam)) {
+        setActiveTab(tabParam as any);
+      }
+      if (sp.get("new") === "1") {
+        setActiveTab("blog");
+        setShowBlogEditor(true);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
     loadAdminData();
   }, [loadAdminData]);
 
