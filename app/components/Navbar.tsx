@@ -1,7 +1,7 @@
 "use client";
 
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import {
   Search,
   MapPin,
@@ -15,12 +15,14 @@ import {
   LayoutDashboard,
   Shield,
   LogOut,
+  X,
 } from 'lucide-react';
-import { useEffect, useState, useRef, Suspense } from 'react';
+import { useEffect, useState, useRef, useCallback, Suspense } from 'react';
 import LocationModal from './LocationModal';
 
 function NavbarContent() {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
 
   const [user, setUser] = useState<any>(null);
@@ -32,23 +34,22 @@ function NavbarContent() {
   const [showLocationModal, setShowLocationModal] = useState(false);
 
   const [menuOpen, setMenuOpen] = useState(false);
-const profileMenuRef = useRef<HTMLDivElement>(null);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
 
-useEffect(() => {
-  const handleOutsideClick = (e: MouseEvent | TouchEvent) => {
-    if (profileMenuRef.current && !profileMenuRef.current.contains(e.target as Node)) {
-      setMenuOpen(false);
-    }
-  };
-  document.addEventListener('mousedown', handleOutsideClick);
-  document.addEventListener('touchstart', handleOutsideClick);
-  return () => {
-    document.removeEventListener('mousedown', handleOutsideClick);
-    document.removeEventListener('touchstart', handleOutsideClick);
-  };
-}, []);
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent | TouchEvent) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    document.addEventListener('touchstart', handleOutsideClick);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('touchstart', handleOutsideClick);
+    };
+  }, []);
 
-  // Sync theme state on mount
   useEffect(() => {
     const savedTheme = localStorage.getItem('ji_theme');
     const darkActive =
@@ -71,13 +72,11 @@ useEffect(() => {
     }
   };
 
-  // Sync search input & location label when URL changes
   useEffect(() => {
     setSearchQuery(searchParams.get('search') || '');
     setLocationLabel(searchParams.get('location') || 'All Nigeria');
   }, [searchParams]);
 
-  // Load user session and listen for profile updates
   useEffect(() => {
     const syncUser = () => {
       const storedUser = localStorage.getItem('ji_user');
@@ -104,44 +103,67 @@ useEffect(() => {
     window.location.href = '/';
   };
 
-  const applyFilterNavigation = (updates: {
-    search?: string;
-    regionId?: string;
-    subRegionId?: string;
-    location?: string;
-  }) => {
-    const params = new URLSearchParams(searchParams.toString());
+  const applyFilterNavigation = useCallback(
+    (
+      updates: {
+        search?: string;
+        regionId?: string;
+        subRegionId?: string;
+        location?: string;
+      },
+      useReplace = false
+    ) => {
+      const params = new URLSearchParams(searchParams.toString());
 
-    if (updates.search !== undefined) {
-      if (updates.search.trim()) params.set('search', updates.search.trim());
-      else params.delete('search');
-    }
-
-    if (updates.regionId !== undefined) {
-      if (updates.regionId) params.set('region_id', updates.regionId);
-      else params.delete('region_id');
-    }
-
-    if (updates.subRegionId !== undefined) {
-      if (updates.subRegionId) params.set('sub_region_id', updates.subRegionId);
-      else params.delete('sub_region_id');
-    }
-
-    if (updates.location !== undefined) {
-      if (updates.location && updates.location !== 'All Nigeria') {
-        params.set('location', updates.location);
-      } else {
-        params.delete('location');
+      if (updates.search !== undefined) {
+        if (updates.search.trim()) params.set('search', updates.search.trim());
+        else params.delete('search');
       }
-    }
 
-    const qs = params.toString();
-    router.push(qs ? `/?${qs}` : '/');
-  };
+      if (updates.regionId !== undefined) {
+        if (updates.regionId) params.set('region_id', updates.regionId);
+        else params.delete('region_id');
+      }
+
+      if (updates.subRegionId !== undefined) {
+        if (updates.subRegionId) params.set('sub_region_id', updates.subRegionId);
+        else params.delete('sub_region_id');
+      }
+
+      if (updates.location !== undefined) {
+        if (updates.location && updates.location !== 'All Nigeria') {
+          params.set('location', updates.location);
+        } else {
+          params.delete('location');
+          params.delete('region_id');
+          params.delete('sub_region_id');
+        }
+      }
+
+      const qs = params.toString();
+      const target = qs ? `/?${qs}` : '/';
+      if (useReplace) router.replace(target);
+      else router.push(target);
+    },
+    [router, searchParams]
+  );
+
+  // Instant Live Search-As-You-Type (250ms debounce on Marketplace homepage)
+  useEffect(() => {
+    if (pathname !== '/') return;
+    const currentUrlSearch = searchParams.get('search') || '';
+    if (searchQuery.trim() === currentUrlSearch) return;
+
+    const timer = setTimeout(() => {
+      applyFilterNavigation({ search: searchQuery }, true);
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery, pathname, searchParams, applyFilterNavigation]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    applyFilterNavigation({ search: searchQuery });
+    applyFilterNavigation({ search: searchQuery }, false);
   };
 
   const avatarSrc = user?.profile_image
@@ -174,7 +196,7 @@ useEffect(() => {
               <button
                 type="button"
                 onClick={() => setShowLocationModal(true)}
-                className="flex items-center gap-1 text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 px-3 py-2.5 rounded-lg transition whitespace-nowrap max-w-[150px]"
+                className="flex items-center gap-1 text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 px-3 py-2.5 rounded-lg transition whitespace-nowrap max-w-[155px]"
               >
                 <MapPin className="w-4 h-4 text-brand-orange shrink-0" />
                 <span className="truncate">{locationLabel}</span>
@@ -185,10 +207,23 @@ useEffect(() => {
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="What are you looking for today?"
-                  className="w-full pl-10 pr-24 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-brand-orange transition"
+                  placeholder="Type to search ads instantly..."
+                  className="w-full pl-10 pr-28 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-brand-orange transition"
                 />
                 <Search className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchQuery('');
+                      applyFilterNavigation({ search: '' }, true);
+                    }}
+                    aria-label="Clear search"
+                    className="absolute right-20 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 p-1"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
                 <button
                   type="submit"
                   className="absolute right-1 top-1 bottom-1 bg-brand-orange hover:bg-orange-700 text-white px-4 rounded text-xs font-bold transition"
@@ -247,99 +282,98 @@ useEffect(() => {
                 </span>
               </button>
 
-              {/* Profile Dropdown */}
-              {/* Tap & Click Profile Dropdown (Mobile + Desktop) */}
-           <div ref={profileMenuRef} className="relative pl-1 border-l border-gray-200">
-             {user ? (
-               <div className="ml-1">
-                 <button
-                   type="button"
-                   onClick={() => setMenuOpen((prev) => !prev)}
-                   aria-expanded={menuOpen}
-                   className="flex items-center gap-2 transition cursor-pointer py-1 focus:outline-none"
-                 >
-                   <div className="w-7 h-7 rounded-full bg-orange-100 text-orange-700 font-bold flex items-center justify-center text-xs overflow-hidden border border-orange-200">
-                     {avatarSrc ? (
-                       <img
-                         src={avatarSrc}
-                         alt={user.full_name}
-                         className="w-full h-full object-cover"
-                       />
-                     ) : (
-                       user.full_name.charAt(0).toUpperCase()
-                     )}
-                   </div>
-                   <span className="text-xs font-bold hidden md:block text-gray-700 hover:text-brand-orange transition-colors">
-                     {user.full_name.split(' ')[0]}
-                   </span>
-                 </button>
+              {/* Tap & Click Profile Dropdown */}
+              <div ref={profileMenuRef} className="relative pl-1 border-l border-gray-200">
+                {user ? (
+                  <div className="ml-1">
+                    <button
+                      type="button"
+                      onClick={() => setMenuOpen((prev) => !prev)}
+                      aria-expanded={menuOpen}
+                      className="flex items-center gap-2 transition cursor-pointer py-1 focus:outline-none"
+                    >
+                      <div className="w-7 h-7 rounded-full bg-orange-100 text-orange-700 font-bold flex items-center justify-center text-xs overflow-hidden border border-orange-200">
+                        {avatarSrc ? (
+                          <img
+                            src={avatarSrc}
+                            alt={user.full_name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          user.full_name.charAt(0).toUpperCase()
+                        )}
+                      </div>
+                      <span className="text-xs font-bold hidden md:block text-gray-700 hover:text-brand-orange transition-colors">
+                        {user.full_name.split(' ')[0]}
+                      </span>
+                    </button>
 
-                 {menuOpen && (
-                   <div className="absolute top-full right-0 mt-2 w-56 z-50">
-                     <div className="bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden text-gray-900">
-                       <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 relative overflow-hidden">
-                         {user.is_verified && (
-                           <div className="absolute -right-6 top-2 bg-blue-500 text-white text-[8px] font-bold px-6 py-0.5 rotate-45 shadow-sm">
-                             VERIFIED
-                           </div>
-                         )}
-                         <p className="font-bold text-sm text-gray-900">{user.full_name}</p>
-                         <p className="text-[11px] text-gray-500 truncate">{user.email}</p>
-                       </div>
+                    {menuOpen && (
+                      <div className="absolute top-full right-0 mt-2 w-56 z-50">
+                        <div className="bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden text-gray-900">
+                          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 relative overflow-hidden">
+                            {user.is_verified && (
+                              <div className="absolute -right-6 top-2 bg-blue-500 text-white text-[8px] font-bold px-6 py-0.5 rotate-45 shadow-sm">
+                                VERIFIED
+                              </div>
+                            )}
+                            <p className="font-bold text-sm text-gray-900">{user.full_name}</p>
+                            <p className="text-[11px] text-gray-500 truncate">{user.email}</p>
+                          </div>
 
-                       <div className="py-1 bg-white">
-                         <Link
-                           href="/profile"
-                           onClick={() => setMenuOpen(false)}
-                           className="w-full text-left px-4 py-2.5 text-xs font-semibold text-gray-700 hover:bg-orange-50 hover:text-brand-orange flex items-center gap-2 transition"
-                         >
-                           <User className="w-4 h-4 text-gray-400" /> My Profile &amp; Shop
-                         </Link>
-                         <Link
-                           href="/dashboard/seller"
-                           onClick={() => setMenuOpen(false)}
-                           className="w-full text-left px-4 py-2.5 text-xs font-semibold text-gray-700 hover:bg-orange-50 hover:text-brand-orange flex items-center gap-2 transition"
-                         >
-                           <LayoutDashboard className="w-4 h-4 text-gray-400" /> Seller Dashboard
-                         </Link>
-                         {isAdmin && (
-                           <Link
-                             href="/dashboard/admin"
-                             onClick={() => setMenuOpen(false)}
-                             className="w-full text-left px-4 py-2.5 text-xs font-semibold text-gray-900 bg-gray-100 hover:bg-gray-200 flex items-center gap-2 transition"
-                           >
-                             <Shield className="w-4 h-4 text-brand-orange" /> Admin Center
-                           </Link>
-                         )}
-                       </div>
+                          <div className="py-1 bg-white">
+                            <Link
+                              href="/profile"
+                              onClick={() => setMenuOpen(false)}
+                              className="w-full text-left px-4 py-2.5 text-xs font-semibold text-gray-700 hover:bg-orange-50 hover:text-brand-orange flex items-center gap-2 transition"
+                            >
+                              <User className="w-4 h-4 text-gray-400" /> My Profile &amp; Shop
+                            </Link>
+                            <Link
+                              href="/dashboard/seller"
+                              onClick={() => setMenuOpen(false)}
+                              className="w-full text-left px-4 py-2.5 text-xs font-semibold text-gray-700 hover:bg-orange-50 hover:text-brand-orange flex items-center gap-2 transition"
+                            >
+                              <LayoutDashboard className="w-4 h-4 text-gray-400" /> Seller Dashboard
+                            </Link>
+                            {isAdmin && (
+                              <Link
+                                href="/dashboard/admin"
+                                onClick={() => setMenuOpen(false)}
+                                className="w-full text-left px-4 py-2.5 text-xs font-semibold text-gray-900 bg-gray-100 hover:bg-gray-200 flex items-center gap-2 transition"
+                              >
+                                <Shield className="w-4 h-4 text-brand-orange" /> Admin Center
+                              </Link>
+                            )}
+                          </div>
 
-                       <div className="border-t border-gray-100 py-1 bg-white">
-                         <button
-                           type="button"
-                           onClick={() => {
-                             setMenuOpen(false);
-                             handleLogout();
-                           }}
-                           className="w-full text-left px-4 py-2.5 text-xs font-bold text-red-600 hover:bg-red-50 flex items-center gap-2 transition"
-                         >
-                           <LogOut className="w-4 h-4" /> Log Out
-                         </button>
-                       </div>
-                     </div>
-                   </div>
-                 )}
-               </div>
-             ) : (
-               <Link href="/login" className="flex items-center gap-2 transition ml-1">
-                 <div className="w-7 h-7 rounded-full bg-orange-100 text-orange-700 font-bold flex items-center justify-center text-xs overflow-hidden">
-                   U
-                 </div>
-                 <span className="text-xs font-bold hidden md:block text-gray-700 hover:text-brand-orange transition-colors">
-                   Log In
-                 </span>
-               </Link>
-             )}
-           </div>
+                          <div className="border-t border-gray-100 py-1 bg-white">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setMenuOpen(false);
+                                handleLogout();
+                              }}
+                              className="w-full text-left px-4 py-2.5 text-xs font-bold text-red-600 hover:bg-red-50 flex items-center gap-2 transition"
+                            >
+                              <LogOut className="w-4 h-4" /> Log Out
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <Link href="/login" className="flex items-center gap-2 transition ml-1">
+                    <div className="w-7 h-7 rounded-full bg-orange-100 text-orange-700 font-bold flex items-center justify-center text-xs overflow-hidden">
+                      U
+                    </div>
+                    <span className="text-xs font-bold hidden md:block text-gray-700 hover:text-brand-orange transition-colors">
+                      Log In
+                    </span>
+                  </Link>
+                )}
+              </div>
 
               <Link
                 href="/sell"
@@ -352,7 +386,6 @@ useEffect(() => {
         </div>
       </header>
 
-      {/* Location Filter Modal */}
       <LocationModal
         isOpen={showLocationModal}
         onClose={() => setShowLocationModal(false)}

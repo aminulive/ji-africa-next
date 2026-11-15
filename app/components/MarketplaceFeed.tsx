@@ -12,6 +12,7 @@ import {
   Loader2,
   X,
   SlidersHorizontal,
+  Search,
 } from 'lucide-react';
 import HeroBanner from './HeroBanner';
 import ProductCard from './ProductCard';
@@ -51,17 +52,26 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
   const locationLabel = searchParams.get('location') || 'All Nigeria';
   const selectedCategory = searchParams.get('category') || 'all';
 
-  // Jiji-style refinement filters
+  // Refinement & Collapsible Inline Search States
   const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
   const [conditionFilter, setConditionFilter] = useState('all');
   const [sortBy, setSortBy] = useState<'newest' | 'price_asc' | 'price_desc'>('newest');
   const [showFilters, setShowFilters] = useState(false);
+  const [inlineSearch, setInlineSearch] = useState(searchQuery);
+
+  // Sync inline filter search box when URL search changes
+  useEffect(() => {
+    setInlineSearch(searchQuery);
+  }, [searchQuery]);
+
+  const hasLocationFilter = Boolean(
+    regionId || subRegionId || (locationLabel && locationLabel !== 'All Nigeria')
+  );
 
   const hasActiveFilters = Boolean(
     searchQuery ||
-      regionId ||
-      subRegionId ||
+      hasLocationFilter ||
       (selectedCategory && selectedCategory !== 'all') ||
       minPrice ||
       maxPrice ||
@@ -82,6 +92,33 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [showLocationModal, setShowLocationModal] = useState(false);
 
+  const updateUrlParams = useCallback(
+    (updates: Record<string, string>, useReplace = false) => {
+      const params = new URLSearchParams(searchParams.toString());
+      Object.entries(updates).forEach(([k, v]) => {
+        if (v && v !== 'all' && v !== 'All Nigeria') params.set(k, v);
+        else params.delete(k);
+      });
+      const qs = params.toString();
+      const target = qs ? `/?${qs}` : '/';
+      if (useReplace) router.replace(target);
+      else router.push(target);
+    },
+    [router, searchParams]
+  );
+
+  // Debounced live typing inside the collapsible Filter header search box
+  useEffect(() => {
+    if (!showFilters) return;
+    if (inlineSearch.trim() === searchQuery) return;
+
+    const timer = setTimeout(() => {
+      updateUrlParams({ search: inlineSearch.trim() }, true);
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [inlineSearch, showFilters, searchQuery, updateUrlParams]);
+
   const fetchFilteredAds = useCallback(
     async (pageNum: number, reset: boolean) => {
       if (reset) setLoadingFeed(true);
@@ -98,6 +135,9 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
         }
         if (subRegionId) url.searchParams.append('sub_region_id', subRegionId);
         else if (regionId) url.searchParams.append('region_id', regionId);
+        if (locationLabel && locationLabel !== 'All Nigeria') {
+          url.searchParams.append('location', locationLabel);
+        }
         if (minPrice) url.searchParams.append('min_price', minPrice);
         if (maxPrice) url.searchParams.append('max_price', maxPrice);
         if (conditionFilter !== 'all') url.searchParams.append('condition', conditionFilter);
@@ -123,10 +163,20 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
         setLoadingMore(false);
       }
     },
-    [searchQuery, selectedCategory, regionId, subRegionId, minPrice, maxPrice, conditionFilter, sortBy]
+    [
+      searchQuery,
+      selectedCategory,
+      regionId,
+      subRegionId,
+      locationLabel,
+      minPrice,
+      maxPrice,
+      conditionFilter,
+      sortBy,
+    ]
   );
 
-  // Re-fetch whenever URL or refinement filters change
+  // Re-fetch whenever URL search, location, category, or refinement filters change
   useEffect(() => {
     if (!hasActiveFilters && sortBy === 'newest') {
       setAds(initialAds);
@@ -137,22 +187,11 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
     fetchFilteredAds(1, true);
   }, [hasActiveFilters, sortBy, initialAds, fetchFilteredAds]);
 
-  const updateUrlParams = (updates: Record<string, string>) => {
-    const params = new URLSearchParams(searchParams.toString());
-    Object.entries(updates).forEach(([k, v]) => {
-      if (v && v !== 'all' && v !== 'All Nigeria') params.set(k, v);
-      else params.delete(k);
-    });
-    const qs = params.toString();
-    router.push(qs ? `/?${qs}` : '/');
-  };
-
   const activeCategoryName =
     selectedCategory === 'all'
       ? 'Trending Ads'
       : sortedCategories.find((c) => String(c.id) === String(selectedCategory))?.name || 'Ads';
 
-  // Apply client-side refinement & sort so filtering is instant even on cached pages
   const visibleAds = useMemo(() => {
     const filtered = ads.filter((a) => {
       if (a.status === 'Unavailable' || a.status === 'unavailable') return false;
@@ -177,7 +216,7 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
 
   return (
     <div className="flex flex-col lg:flex-row gap-6">
-      {/* Desktop Categories Sidebar (All 15 Jiji Categories + Befitting Icons) */}
+      {/* Desktop Categories Sidebar */}
       <aside className="hidden lg:block w-64 shrink-0">
         <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden sticky top-20">
           <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
@@ -231,7 +270,7 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
       <div className="flex-1 min-w-0">
         <HeroBanner />
 
-        {/* Mobile Horizontal Category Circles with Befitting Icons */}
+        {/* Mobile Horizontal Category Circles */}
         <div className="block lg:hidden mb-6 -mx-4 px-4 sm:mx-0 sm:px-0">
           <div className="flex overflow-x-auto gap-3.5 pb-2 snap-x snap-mandatory [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
             <button
@@ -300,14 +339,17 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
                 Search: &ldquo;{searchQuery}&rdquo;
                 <button
                   type="button"
-                  onClick={() => updateUrlParams({ search: '' })}
+                  onClick={() => {
+                    setInlineSearch('');
+                    updateUrlParams({ search: '' });
+                  }}
                   className="hover:text-orange-900"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
               </span>
             )}
-            {locationLabel !== 'All Nigeria' && (
+            {hasLocationFilter && (
               <span className="inline-flex items-center gap-1.5 bg-orange-50 text-brand-orange border border-orange-200 px-3 py-1 rounded-full text-xs font-bold">
                 Location: {locationLabel}
                 <button
@@ -363,12 +405,43 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
           </div>
         )}
 
-        {/* Feed Header & Filter Controls */}
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-base font-bold text-gray-900">
-            {searchQuery ? `Results for "${searchQuery}"` : activeCategoryName}
+        {/* Feed Header with Collapsible Inline Search Between "Trending Ads" and "Filter & Sort" */}
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2.5">
+          <h2 className="text-base font-bold text-gray-900 shrink-0">
+            {searchQuery
+              ? `Results for "${searchQuery}"`
+              : hasLocationFilter
+              ? `${activeCategoryName} in ${locationLabel}`
+              : activeCategoryName}
           </h2>
-          <div className="flex items-center gap-2">
+
+          {showFilters && (
+            <div className="order-3 sm:order-2 w-full sm:w-auto sm:flex-1 sm:max-w-md relative">
+              <Search className="w-3.5 h-3.5 text-brand-orange absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                value={inlineSearch}
+                onChange={(e) => setInlineSearch(e.target.value)}
+                placeholder={`Search ${hasLocationFilter ? `in ${locationLabel}` : 'ads'}...`}
+                className="w-full pl-8 pr-8 py-1.5 bg-white border border-brand-orange/60 rounded-lg text-xs text-gray-800 shadow-xs focus:outline-none focus:border-brand-orange transition"
+              />
+              {inlineSearch && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInlineSearch('');
+                    updateUrlParams({ search: '' }, true);
+                  }}
+                  aria-label="Clear filter search"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          )}
+
+          <div className="order-2 sm:order-3 flex items-center gap-2 shrink-0">
             <button
               type="button"
               onClick={() => setShowFilters((f) => !f)}
@@ -402,7 +475,7 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
           </div>
         </div>
 
-        {/* Collapsible Jiji Price, Condition & Sort Bar */}
+        {/* Collapsible Price, Condition & Sort Bar */}
         {showFilters && (
           <div className="mb-4 bg-white p-3.5 rounded-xl border border-gray-200 shadow-sm grid grid-cols-2 sm:grid-cols-4 gap-2.5">
             <div>
@@ -537,7 +610,6 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
               </div>
             )}
 
-            {/* Load More Ads Button */}
             {hasMoreAds && (
               <div className="mt-6 mb-8 text-center">
                 <button
@@ -553,13 +625,27 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
             )}
           </>
         ) : (
-          <div className="bg-white p-10 rounded-xl shadow-sm border border-gray-200 text-center text-gray-500 font-medium text-sm">
-            No ads found matching your search or filter criteria.
+          <div className="bg-white p-10 rounded-xl shadow-sm border border-gray-200 text-center space-y-2">
+            <p className="text-gray-700 font-bold text-sm">
+              {hasLocationFilter
+                ? `No adverts found in ${locationLabel}${searchQuery ? ` matching "${searchQuery}"` : ''}.`
+                : 'No adverts found matching your search or filter criteria.'}
+            </p>
+            {hasLocationFilter && (
+              <button
+                type="button"
+                onClick={() =>
+                  updateUrlParams({ region_id: '', sub_region_id: '', location: '' })
+                }
+                className="text-xs font-bold text-brand-orange hover:underline"
+              >
+                Show adverts across All Nigeria
+              </button>
+            )}
           </div>
         )}
       </div>
 
-      {/* Location Modal triggered from Feed Header */}
       <LocationModal
         isOpen={showLocationModal}
         onClose={() => setShowLocationModal(false)}

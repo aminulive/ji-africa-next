@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -12,6 +12,7 @@ import {
   ShieldCheck,
   KeyRound,
   MailCheck,
+  RefreshCw,
 } from 'lucide-react';
 import { GoogleLogin } from '@react-oauth/google';
 
@@ -21,6 +22,8 @@ export default function LoginPage() {
   const router = useRouter();
   const [mode, setMode] = useState<'login' | 'register' | 'forgot' | 'verify'>('login');
   const [loading, setLoading] = useState(false);
+  const [resendingCode, setResendingCode] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
@@ -28,6 +31,7 @@ export default function LoginPage() {
   const [identifier, setIdentifier] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
 
   // Extended Registration States
   const [fullName, setFullName] = useState('');
@@ -57,6 +61,12 @@ export default function LoginPage() {
   const [newPassword, setNewPassword] = useState('');
 
   const hasGoogleClient = Boolean(process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID);
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setTimeout(() => setResendCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [resendCooldown]);
 
   const completeSession = (data: any) => {
     localStorage.setItem('ji_user', JSON.stringify(data.user));
@@ -89,6 +99,32 @@ export default function LoginPage() {
     }
   };
 
+  const handleResendVerification = async () => {
+    if (!email || resendCooldown > 0 || resendingCode) return;
+    setResendingCode(true);
+    setError('');
+    setSuccessMsg('');
+
+    try {
+      const res = await fetch(`${API_URL}/auth/resend-verification`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSuccessMsg(data.message || `A new 6-digit code was sent to ${email}.`);
+        setResendCooldown(30);
+      } else {
+        setError(data.error || 'Could not resend verification code.');
+      }
+    } catch {
+      setError('Network error while resending code.');
+    } finally {
+      setResendingCode(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -112,6 +148,11 @@ export default function LoginPage() {
       }
 
       if (mode === 'register') {
+        if (password !== confirmPassword) {
+          setError('Passwords do not match. Please enter the exact same password in both fields.');
+          setLoading(false);
+          return;
+        }
         if (!acceptedTerms) {
           setError('Please read and accept the Terms & Conditions and Privacy Policy.');
           setLoading(false);
@@ -150,6 +191,7 @@ export default function LoginPage() {
           localStorage.setItem('ji_token', data.token);
           window.dispatchEvent(new Event('ji_user_updated'));
           setOtpCode('');
+          setResendCooldown(30);
           setSuccessMsg(
             `Account created! We sent a 6-digit verification code to ${email}. Enter it below or continue to your shop.`
           );
@@ -218,6 +260,9 @@ export default function LoginPage() {
     }
   };
 
+  const passwordsEntered = password.length > 0 || confirmPassword.length > 0;
+  const passwordsMatch = password.length >= 6 && password === confirmPassword;
+
   return (
     <div className="max-w-md mx-auto py-8 px-4">
       <Link
@@ -228,7 +273,6 @@ export default function LoginPage() {
       </Link>
 
       <div className="bg-white rounded-2xl p-6 shadow-xl border border-gray-100">
-        {/* Top Tabs (Login vs Create Account) */}
         {(mode === 'login' || mode === 'register') && (
           <div className="flex border-b border-gray-200 mb-6">
             <button
@@ -264,7 +308,6 @@ export default function LoginPage() {
           </div>
         )}
 
-        {/* Error & Success Banners */}
         {error && (
           <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 text-xs font-bold rounded-lg flex items-center gap-2">
             <AlertCircle className="w-4 h-4 shrink-0" />
@@ -279,7 +322,6 @@ export default function LoginPage() {
           </div>
         )}
 
-        {/* Google OAuth Button */}
         {(mode === 'login' || mode === 'register') && hasGoogleClient && (
           <div className="mb-5">
             <div className="flex justify-center">
@@ -439,15 +481,52 @@ export default function LoginPage() {
               className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition"
             />
 
-            <input
-              type="password"
-              placeholder="Create Password (min 6 characters) *"
-              required
-              minLength={6}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition"
-            />
+            {/* Dual Password Confirmation Fields */}
+            <div className="space-y-2.5">
+              <input
+                type="password"
+                placeholder="Create Password (min 6 characters) *"
+                required
+                minLength={6}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition"
+              />
+
+              <input
+                type="password"
+                placeholder="Confirm Password *"
+                required
+                minLength={6}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                className={`w-full px-4 py-3 border rounded-lg text-sm bg-gray-50 focus:bg-white focus:outline-none transition ${
+                  confirmPassword.length > 0
+                    ? passwordsMatch
+                      ? 'border-emerald-400 focus:border-emerald-500'
+                      : 'border-red-300 focus:border-red-500'
+                    : 'border-gray-200 focus:border-brand-orange'
+                }`}
+              />
+
+              {passwordsEntered && confirmPassword.length > 0 && (
+                <p
+                  className={`text-[11px] font-bold flex items-center gap-1 ${
+                    passwordsMatch ? 'text-emerald-600' : 'text-red-500'
+                  }`}
+                >
+                  {passwordsMatch ? (
+                    <>
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Passwords match
+                    </>
+                  ) : (
+                    <>
+                      <AlertCircle className="w-3.5 h-3.5" /> Passwords do not match
+                    </>
+                  )}
+                </p>
+              )}
+            </div>
 
             <div className="pt-3 border-t border-gray-100">
               <p className="text-xs font-bold text-gray-800 mb-3">
@@ -499,7 +578,6 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* Mandatory Terms & Conditions + Newsletter Opt-In */}
             <div className="pt-3 border-t border-gray-100 space-y-3">
               <div className="flex items-start gap-2.5 bg-orange-50/70 p-3 rounded-xl border border-orange-100">
                 <input
@@ -544,7 +622,7 @@ export default function LoginPage() {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || (confirmPassword.length > 0 && !passwordsMatch)}
               className="w-full mt-2 flex justify-center items-center py-3.5 bg-brand-orange hover:bg-orange-700 text-white font-bold rounded-lg shadow-sm transition disabled:opacity-70"
             >
               {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Create Account'}
@@ -552,7 +630,7 @@ export default function LoginPage() {
           </form>
         )}
 
-        {/* --- MODE 3: EMAIL VERIFICATION --- */}
+        {/* --- MODE 3: EMAIL VERIFICATION + RESEND CODE --- */}
         {mode === 'verify' && (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="flex items-center gap-2 text-brand-orange font-bold text-base">
@@ -560,7 +638,7 @@ export default function LoginPage() {
               <h2>Verify Your Email</h2>
             </div>
             <p className="text-xs text-gray-500">
-              Enter the 6-digit code sent to <strong>{email}</strong>.
+              Enter the 6-digit code sent to <strong>{email}</strong>. Check your Spam/Junk folder if you do not see it in your inbox.
             </p>
             <input
               type="text"
@@ -578,16 +656,33 @@ export default function LoginPage() {
             >
               {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Verify Email'}
             </button>
-            <button
-              type="button"
-              onClick={() => {
-                router.push('/');
-                router.refresh();
-              }}
-              className="w-full py-2 text-xs font-semibold text-gray-500 hover:text-gray-800"
-            >
-              Skip for now &amp; go to Marketplace
-            </button>
+
+            <div className="flex items-center justify-between pt-1">
+              <button
+                type="button"
+                disabled={resendCooldown > 0 || resendingCode}
+                onClick={handleResendVerification}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-orange hover:underline disabled:text-gray-400 disabled:no-underline"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${resendingCode ? 'animate-spin' : ''}`} />
+                {resendCooldown > 0
+                  ? `Resend Code in ${resendCooldown}s`
+                  : resendingCode
+                  ? 'Sending Code...'
+                  : 'Resend Verification Code'}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  router.push('/');
+                  router.refresh();
+                }}
+                className="text-xs font-semibold text-gray-500 hover:text-gray-800"
+              >
+                Skip for now →
+              </button>
+            </div>
           </form>
         )}
 
