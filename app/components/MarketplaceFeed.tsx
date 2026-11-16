@@ -13,6 +13,9 @@ import {
   X,
   SlidersHorizontal,
   Search,
+  ChevronRight,
+  ChevronDown,
+  ArrowLeft,
 } from 'lucide-react';
 import HeroBanner from './HeroBanner';
 import ProductCard from './ProductCard';
@@ -21,9 +24,33 @@ import { CategoryIcon } from '../lib/categoryIcons';
 
 const API_URL = 'https://ji-africa-backend.onrender.com/api';
 
+interface CategoryNode {
+  name: string;
+  children: CategoryNode[];
+}
+
 interface MarketplaceFeedProps {
   initialCategories: any[];
   initialAds: any[];
+}
+
+function buildCategoryTree(cat: any): CategoryNode[] {
+  if (Array.isArray(cat?.category_tree) && cat.category_tree.length > 0) {
+    return cat.category_tree;
+  }
+  const raw = cat?.subcategories;
+  if (Array.isArray(raw)) {
+    return raw
+      .map((item: any) =>
+        typeof item === 'string'
+          ? { name: item, children: [] }
+          : item?.name
+          ? { name: item.name, children: Array.isArray(item.children) ? item.children : [] }
+          : null
+      )
+      .filter(Boolean) as CategoryNode[];
+  }
+  return [];
 }
 
 function getAdImage(ad: any) {
@@ -50,7 +77,12 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
   const regionId = searchParams.get('region_id') || '';
   const subRegionId = searchParams.get('sub_region_id') || '';
   const locationLabel = searchParams.get('location') || 'All Nigeria';
+
+  // 4-Level Category Drilldown Params
   const selectedCategory = searchParams.get('category') || 'all';
+  const selectedSubcategory = searchParams.get('subcategory') || '';
+  const selectedSubSubcategory = searchParams.get('sub_subcategory') || '';
+  const selectedLevel4 = searchParams.get('sub_sub_subcategory') || '';
 
   // Refinement & Collapsible Inline Search States
   const [minPrice, setMinPrice] = useState('');
@@ -60,7 +92,6 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
   const [showFilters, setShowFilters] = useState(false);
   const [inlineSearch, setInlineSearch] = useState(searchQuery);
 
-  // Sync inline filter search box when URL search changes
   useEffect(() => {
     setInlineSearch(searchQuery);
   }, [searchQuery]);
@@ -73,16 +104,75 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
     searchQuery ||
       hasLocationFilter ||
       (selectedCategory && selectedCategory !== 'all') ||
+      selectedSubcategory ||
+      selectedSubSubcategory ||
+      selectedLevel4 ||
       minPrice ||
       maxPrice ||
       conditionFilter !== 'all'
   );
 
   const sortedCategories = useMemo(() => {
-    return [...initialCategories].sort(
-      (a, b) => (Number(a.display_order) || 99) - (Number(b.display_order) || 99)
-    );
+    return [...initialCategories]
+      .sort((a, b) => (Number(a.display_order) || 99) - (Number(b.display_order) || 99))
+      .map((cat) => ({
+        ...cat,
+        tree: buildCategoryTree(cat),
+      }));
   }, [initialCategories]);
+
+  // Active Category Tree Nodes across Levels 1 -> 2 -> 3 -> 4
+  const activeCatObj = useMemo(
+    () => sortedCategories.find((c) => String(c.id) === String(selectedCategory)) || null,
+    [sortedCategories, selectedCategory]
+  );
+
+  const activeLevel2Node = useMemo(
+    () =>
+      activeCatObj?.tree.find(
+        (n: CategoryNode) => n.name.toLowerCase() === selectedSubcategory.toLowerCase()
+      ) || null,
+    [activeCatObj, selectedSubcategory]
+  );
+
+  const activeLevel3Node = useMemo(
+    () =>
+      activeLevel2Node?.children?.find(
+        (n: CategoryNode) => n.name.toLowerCase() === selectedSubSubcategory.toLowerCase()
+      ) || null,
+    [activeLevel2Node, selectedSubSubcategory]
+  );
+
+  // Determine which child list to show in the drilldown bar
+  const currentDrillOptions: {
+    level: 2 | 3 | 4;
+    parentLabel: string;
+    nodes: CategoryNode[];
+  } | null = useMemo(() => {
+    if (!activeCatObj) return null;
+    if (activeLevel3Node && activeLevel3Node.children?.length > 0) {
+      return {
+        level: 4,
+        parentLabel: activeLevel3Node.name,
+        nodes: activeLevel3Node.children,
+      };
+    }
+    if (activeLevel2Node && activeLevel2Node.children?.length > 0 && !selectedSubSubcategory) {
+      return {
+        level: 3,
+        parentLabel: activeLevel2Node.name,
+        nodes: activeLevel2Node.children,
+      };
+    }
+    if (activeCatObj.tree.length > 0 && !selectedSubcategory) {
+      return {
+        level: 2,
+        parentLabel: activeCatObj.name,
+        nodes: activeCatObj.tree,
+      };
+    }
+    return null;
+  }, [activeCatObj, activeLevel2Node, activeLevel3Node, selectedSubcategory, selectedSubSubcategory]);
 
   const [ads, setAds] = useState<any[]>(initialAds);
   const [page, setPage] = useState(2);
@@ -107,7 +197,6 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
     [router, searchParams]
   );
 
-  // Debounced live typing inside the collapsible Filter header search box
   useEffect(() => {
     if (!showFilters) return;
     if (inlineSearch.trim() === searchQuery) return;
@@ -132,6 +221,13 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
         if (searchQuery) url.searchParams.append('search', searchQuery);
         if (selectedCategory && selectedCategory !== 'all') {
           url.searchParams.append('category', selectedCategory);
+        }
+        if (selectedSubcategory) url.searchParams.append('subcategory', selectedSubcategory);
+        if (selectedSubSubcategory) {
+          url.searchParams.append('sub_subcategory', selectedSubSubcategory);
+        }
+        if (selectedLevel4) {
+          url.searchParams.append('sub_sub_subcategory', selectedLevel4);
         }
         if (subRegionId) url.searchParams.append('sub_region_id', subRegionId);
         else if (regionId) url.searchParams.append('region_id', regionId);
@@ -166,6 +262,9 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
     [
       searchQuery,
       selectedCategory,
+      selectedSubcategory,
+      selectedSubSubcategory,
+      selectedLevel4,
       regionId,
       subRegionId,
       locationLabel,
@@ -176,7 +275,6 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
     ]
   );
 
-  // Re-fetch whenever URL search, location, category, or refinement filters change
   useEffect(() => {
     if (!hasActiveFilters && sortBy === 'newest') {
       setAds(initialAds);
@@ -187,10 +285,11 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
     fetchFilteredAds(1, true);
   }, [hasActiveFilters, sortBy, initialAds, fetchFilteredAds]);
 
-  const activeCategoryName =
-    selectedCategory === 'all'
-      ? 'Trending Ads'
-      : sortedCategories.find((c) => String(c.id) === String(selectedCategory))?.name || 'Ads';
+  const activeCategoryHeading =
+    selectedLevel4 ||
+    selectedSubSubcategory ||
+    selectedSubcategory ||
+    (selectedCategory === 'all' ? 'Trending Ads' : activeCatObj?.name || 'Ads');
 
   const visibleAds = useMemo(() => {
     const filtered = ads.filter((a) => {
@@ -216,17 +315,41 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
 
   return (
     <div className="flex flex-col lg:flex-row gap-6">
-      {/* Desktop Categories Sidebar */}
+      {/* Desktop Categories Sidebar with 4-Level Expandable Tree */}
       <aside className="hidden lg:block w-64 shrink-0">
         <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden sticky top-20">
-          <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
+          <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex items-center justify-between">
             <h3 className="font-bold text-gray-800 text-sm">Categories</h3>
+            {selectedCategory !== 'all' && (
+              <button
+                type="button"
+                onClick={() =>
+                  updateUrlParams({
+                    category: 'all',
+                    subcategory: '',
+                    sub_subcategory: '',
+                    sub_sub_subcategory: '',
+                  })
+                }
+                className="text-[11px] font-bold text-brand-orange hover:underline"
+              >
+                Reset
+              </button>
+            )}
           </div>
+
           <ul className="py-1.5 max-h-[calc(100vh-7rem)] overflow-y-auto">
             <li>
               <button
                 type="button"
-                onClick={() => updateUrlParams({ category: 'all' })}
+                onClick={() =>
+                  updateUrlParams({
+                    category: 'all',
+                    subcategory: '',
+                    sub_subcategory: '',
+                    sub_sub_subcategory: '',
+                  })
+                }
                 className={`w-full flex items-center gap-3 text-left px-4 py-2.5 text-xs transition ${
                   selectedCategory === 'all'
                     ? 'text-brand-orange font-bold bg-orange-50'
@@ -237,28 +360,150 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
                 <span>All Ads</span>
               </button>
             </li>
+
             {sortedCategories.map((c: any) => {
               const isSelected = String(selectedCategory) === String(c.id);
+              const hasChildren = c.tree && c.tree.length > 0;
               return (
                 <li key={c.id}>
                   <button
                     type="button"
-                    onClick={() => updateUrlParams({ category: String(c.id) })}
-                    className={`w-full flex items-center gap-3 text-left px-4 py-2.5 text-xs transition ${
+                    onClick={() =>
+                      updateUrlParams({
+                        category: String(c.id),
+                        subcategory: '',
+                        sub_subcategory: '',
+                        sub_sub_subcategory: '',
+                      })
+                    }
+                    className={`w-full flex items-center justify-between gap-2 text-left px-4 py-2.5 text-xs transition ${
                       isSelected
                         ? 'text-brand-orange font-bold bg-orange-50'
                         : 'text-gray-600 hover:text-brand-orange hover:bg-orange-50'
                     }`}
                   >
-                    <CategoryIcon
-                      iconName={c.icon}
-                      categoryName={c.name}
-                      className={`w-4 h-4 shrink-0 ${
-                        isSelected ? 'text-brand-orange' : 'text-gray-500'
-                      }`}
-                    />
-                    <span className="truncate">{c.name}</span>
+                    <span className="flex items-center gap-3 min-w-0">
+                      <CategoryIcon
+                        iconName={c.icon}
+                        categoryName={c.name}
+                        className={`w-4 h-4 shrink-0 ${
+                          isSelected ? 'text-brand-orange' : 'text-gray-500'
+                        }`}
+                      />
+                      <span className="truncate">{c.name}</span>
+                    </span>
+                    {hasChildren && (
+                      isSelected ? (
+                        <ChevronDown className="w-3.5 h-3.5 shrink-0 text-brand-orange" />
+                      ) : (
+                        <ChevronRight className="w-3.5 h-3.5 shrink-0 text-gray-400" />
+                      )
+                    )}
                   </button>
+
+                  {/* Level 2 Subcategories */}
+                  {isSelected && hasChildren && (
+                    <ul className="bg-gray-50/80 border-y border-gray-100 py-1">
+                      {c.tree.map((l2: CategoryNode) => {
+                        const isL2Active =
+                          selectedSubcategory.toLowerCase() === l2.name.toLowerCase();
+                        return (
+                          <li key={l2.name}>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                updateUrlParams({
+                                  category: String(c.id),
+                                  subcategory: l2.name,
+                                  sub_subcategory: '',
+                                  sub_sub_subcategory: '',
+                                })
+                              }
+                              className={`w-full flex items-center justify-between pl-9 pr-3 py-1.5 text-[11px] text-left transition ${
+                                isL2Active
+                                  ? 'text-brand-orange font-bold bg-orange-100/60'
+                                  : 'text-gray-600 hover:text-brand-orange'
+                              }`}
+                            >
+                              <span className="truncate">{l2.name}</span>
+                              {l2.children?.length > 0 && (
+                                <ChevronRight className="w-3 h-3 shrink-0" />
+                              )}
+                            </button>
+
+                            {/* Level 3 Sub-subcategories */}
+                            {isL2Active && l2.children?.length > 0 && (
+                              <ul className="bg-white border-y border-gray-100 py-1">
+                                {l2.children.map((l3: CategoryNode) => {
+                                  const isL3Active =
+                                    selectedSubSubcategory.toLowerCase() ===
+                                    l3.name.toLowerCase();
+                                  return (
+                                    <li key={l3.name}>
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          updateUrlParams({
+                                            category: String(c.id),
+                                            subcategory: l2.name,
+                                            sub_subcategory: l3.name,
+                                            sub_sub_subcategory: '',
+                                          })
+                                        }
+                                        className={`w-full flex items-center justify-between pl-12 pr-3 py-1.5 text-[11px] text-left transition ${
+                                          isL3Active
+                                            ? 'text-brand-orange font-bold bg-orange-50'
+                                            : 'text-gray-500 hover:text-brand-orange'
+                                        }`}
+                                      >
+                                        <span className="truncate">• {l3.name}</span>
+                                        {l3.children?.length > 0 && (
+                                          <ChevronRight className="w-3 h-3 shrink-0" />
+                                        )}
+                                      </button>
+
+                                      {/* Level 4 Sub-sub-subcategories */}
+                                      {isL3Active && l3.children?.length > 0 && (
+                                        <ul className="bg-orange-50/40 py-1">
+                                          {l3.children.map((l4: CategoryNode) => {
+                                            const isL4Active =
+                                              selectedLevel4.toLowerCase() ===
+                                              l4.name.toLowerCase();
+                                            return (
+                                              <li key={l4.name}>
+                                                <button
+                                                  type="button"
+                                                  onClick={() =>
+                                                    updateUrlParams({
+                                                      category: String(c.id),
+                                                      subcategory: l2.name,
+                                                      sub_subcategory: l3.name,
+                                                      sub_sub_subcategory: l4.name,
+                                                    })
+                                                  }
+                                                  className={`w-full pl-16 pr-3 py-1 text-[10px] text-left truncate transition ${
+                                                    isL4Active
+                                                      ? 'text-brand-orange font-black'
+                                                      : 'text-gray-500 hover:text-brand-orange'
+                                                  }`}
+                                                >
+                                                  ↳ {l4.name}
+                                                </button>
+                                              </li>
+                                            );
+                                          })}
+                                        </ul>
+                                      )}
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
                 </li>
               );
             })}
@@ -271,11 +516,18 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
         <HeroBanner />
 
         {/* Mobile Horizontal Category Circles */}
-        <div className="block lg:hidden mb-6 -mx-4 px-4 sm:mx-0 sm:px-0">
+        <div className="block lg:hidden mb-4 -mx-4 px-4 sm:mx-0 sm:px-0">
           <div className="flex overflow-x-auto gap-3.5 pb-2 snap-x snap-mandatory [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
             <button
               type="button"
-              onClick={() => updateUrlParams({ category: 'all' })}
+              onClick={() =>
+                updateUrlParams({
+                  category: 'all',
+                  subcategory: '',
+                  sub_subcategory: '',
+                  sub_sub_subcategory: '',
+                })
+              }
               className="flex flex-col items-center gap-1.5 shrink-0 snap-start w-[72px]"
             >
               <div
@@ -302,7 +554,14 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
                 <button
                   key={c.id}
                   type="button"
-                  onClick={() => updateUrlParams({ category: String(c.id) })}
+                  onClick={() =>
+                    updateUrlParams({
+                      category: String(c.id),
+                      subcategory: '',
+                      sub_subcategory: '',
+                      sub_sub_subcategory: '',
+                    })
+                  }
                   className="flex flex-col items-center gap-1.5 shrink-0 snap-start w-[72px]"
                 >
                   <div
@@ -330,6 +589,149 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
             })}
           </div>
         </div>
+
+        {/* Interactive 4-Level Subcategory Drilldown Strip (Mobile & Desktop) */}
+        {activeCatObj && (
+          <div className="mb-4 bg-white rounded-xl border border-gray-200 p-3 shadow-xs space-y-2.5">
+            {/* Clickable Category Breadcrumb Trail */}
+            <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-bold text-gray-500">
+              <button
+                type="button"
+                onClick={() =>
+                  updateUrlParams({
+                    category: 'all',
+                    subcategory: '',
+                    sub_subcategory: '',
+                    sub_sub_subcategory: '',
+                  })
+                }
+                className="inline-flex items-center gap-1 text-gray-600 hover:text-brand-orange"
+              >
+                <ArrowLeft className="w-3 h-3" /> All Categories
+              </button>
+              <ChevronRight className="w-3 h-3 text-gray-400" />
+              <button
+                type="button"
+                onClick={() =>
+                  updateUrlParams({
+                    category: String(activeCatObj.id),
+                    subcategory: '',
+                    sub_subcategory: '',
+                    sub_sub_subcategory: '',
+                  })
+                }
+                className={
+                  !selectedSubcategory
+                    ? 'text-brand-orange font-black'
+                    : 'hover:text-brand-orange'
+                }
+              >
+                {activeCatObj.name}
+              </button>
+
+              {selectedSubcategory && (
+                <>
+                  <ChevronRight className="w-3 h-3 text-gray-400" />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      updateUrlParams({
+                        category: String(activeCatObj.id),
+                        subcategory: selectedSubcategory,
+                        sub_subcategory: '',
+                        sub_sub_subcategory: '',
+                      })
+                    }
+                    className={
+                      !selectedSubSubcategory
+                        ? 'text-brand-orange font-black'
+                        : 'hover:text-brand-orange'
+                    }
+                  >
+                    {selectedSubcategory}
+                  </button>
+                </>
+              )}
+
+              {selectedSubSubcategory && (
+                <>
+                  <ChevronRight className="w-3 h-3 text-gray-400" />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      updateUrlParams({
+                        category: String(activeCatObj.id),
+                        subcategory: selectedSubcategory,
+                        sub_subcategory: selectedSubSubcategory,
+                        sub_sub_subcategory: '',
+                      })
+                    }
+                    className={
+                      !selectedLevel4
+                        ? 'text-brand-orange font-black'
+                        : 'hover:text-brand-orange'
+                    }
+                  >
+                    {selectedSubSubcategory}
+                  </button>
+                </>
+              )}
+
+              {selectedLevel4 && (
+                <>
+                  <ChevronRight className="w-3 h-3 text-gray-400" />
+                  <span className="text-brand-orange font-black">{selectedLevel4}</span>
+                </>
+              )}
+            </div>
+
+            {/* Next-Level Subcategory Pills */}
+            {currentDrillOptions && currentDrillOptions.nodes.length > 0 && (
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                <span className="text-[10px] font-bold uppercase text-gray-400 shrink-0">
+                  {currentDrillOptions.parentLabel}:
+                </span>
+                {currentDrillOptions.nodes.map((node) => {
+                  const hasDeeper = node.children && node.children.length > 0;
+                  return (
+                    <button
+                      key={node.name}
+                      type="button"
+                      onClick={() => {
+                        if (currentDrillOptions.level === 2) {
+                          updateUrlParams({
+                            category: String(activeCatObj.id),
+                            subcategory: node.name,
+                            sub_subcategory: '',
+                            sub_sub_subcategory: '',
+                          });
+                        } else if (currentDrillOptions.level === 3) {
+                          updateUrlParams({
+                            category: String(activeCatObj.id),
+                            subcategory: selectedSubcategory,
+                            sub_subcategory: node.name,
+                            sub_sub_subcategory: '',
+                          });
+                        } else {
+                          updateUrlParams({
+                            category: String(activeCatObj.id),
+                            subcategory: selectedSubcategory,
+                            sub_subcategory: selectedSubSubcategory,
+                            sub_sub_subcategory: node.name,
+                          });
+                        }
+                      }}
+                      className="px-3 py-1.5 rounded-full text-xs font-bold bg-orange-50/80 hover:bg-brand-orange text-gray-800 hover:text-white border border-orange-200/80 transition shrink-0 inline-flex items-center gap-1"
+                    >
+                      <span>{node.name}</span>
+                      {hasDeeper && <ChevronRight className="w-3.5 h-3.5 opacity-75" />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Active Search / Filter Badges */}
         {hasActiveFilters && (
@@ -365,10 +767,17 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
             )}
             {selectedCategory !== 'all' && (
               <span className="inline-flex items-center gap-1.5 bg-orange-50 text-brand-orange border border-orange-200 px-3 py-1 rounded-full text-xs font-bold">
-                Category: {activeCategoryName}
+                {activeCategoryHeading}
                 <button
                   type="button"
-                  onClick={() => updateUrlParams({ category: 'all' })}
+                  onClick={() =>
+                    updateUrlParams({
+                      category: 'all',
+                      subcategory: '',
+                      sub_subcategory: '',
+                      sub_sub_subcategory: '',
+                    })
+                  }
                   className="hover:text-orange-900"
                 >
                   <X className="w-3.5 h-3.5" />
@@ -405,14 +814,14 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
           </div>
         )}
 
-        {/* Feed Header with Collapsible Inline Search Between "Trending Ads" and "Filter & Sort" */}
+        {/* Feed Header */}
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2.5">
           <h2 className="text-base font-bold text-gray-900 shrink-0">
             {searchQuery
               ? `Results for "${searchQuery}"`
               : hasLocationFilter
-              ? `${activeCategoryName} in ${locationLabel}`
-              : activeCategoryName}
+              ? `${activeCategoryHeading} in ${locationLabel}`
+              : activeCategoryHeading}
           </h2>
 
           {showFilters && (

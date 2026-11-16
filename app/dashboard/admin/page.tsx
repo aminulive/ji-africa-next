@@ -20,6 +20,9 @@ import {
   AlertTriangle,
   ExternalLink,
   ArrowLeft,
+  FolderTree,
+  ChevronRight,
+  ChevronDown,
 } from 'lucide-react';
 
 const API_URL = 'https://ji-africa-backend.onrender.com/api';
@@ -42,7 +45,9 @@ function getAdThumb(ad: any) {
 
 export default function AdminDashboardPage() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<'moderation' | 'users' | 'blog' | 'messages'>('moderation');
+  const [activeTab, setActiveTab] = useState<
+    'moderation' | 'users' | 'categories' | 'blog' | 'messages'
+  >('moderation');
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState('');
 
@@ -65,6 +70,20 @@ export default function AdminDashboardPage() {
   // Users & KYC State
   const [users, setUsers] = useState<any[]>([]);
   const [userSearch, setUserSearch] = useState('');
+
+  // 4-Level Categories Governance State
+  const [categories, setCategories] = useState<any[]>([]);
+  const [newCatName, setNewCatName] = useState('');
+  const [newCatIcon, setNewCatIcon] = useState('layers');
+  const [creatingCat, setCreatingCat] = useState(false);
+  const [expandedCatIds, setExpandedCatIds] = useState<Record<number, boolean>>({});
+  const [addingNodeTarget, setAddingNodeTarget] = useState<{
+    catId: number;
+    path: string[];
+    label: string;
+  } | null>(null);
+  const [newNodeName, setNewNodeName] = useState('');
+  const [savingNode, setSavingNode] = useState(false);
 
   // Blog CMS State
   const [posts, setPosts] = useState<any[]>([]);
@@ -116,10 +135,11 @@ export default function AdminDashboardPage() {
 
     try {
       const headers = getAuthHeaders();
-      const [statsRes, adsRes, usersRes, blogRes, msgRes] = await Promise.all([
+      const [statsRes, adsRes, usersRes, catsRes, blogRes, msgRes] = await Promise.all([
         fetch(`${API_URL}/admin/stats`, { headers }),
         fetch(`${API_URL}/admin/ads?status=${adFilter}`, { headers }),
         fetch(`${API_URL}/admin/users?search=${encodeURIComponent(userSearch)}`, { headers }),
+        fetch(`${API_URL}/admin/categories`, { headers }),
         fetch(`${API_URL}/admin/blog`, { headers }),
         fetch(`${API_URL}/admin/messages`, { headers }),
       ]);
@@ -131,6 +151,7 @@ export default function AdminDashboardPage() {
         setReports(d.reports || []);
       }
       if (usersRes.ok) setUsers(await usersRes.json());
+      if (catsRes.ok) setCategories(await catsRes.json());
       if (blogRes.ok) setPosts(await blogRes.json());
       if (msgRes.ok) setMessages(await msgRes.json());
     } catch (err) {
@@ -141,14 +162,17 @@ export default function AdminDashboardPage() {
   }, [router, adFilter, userSearch]);
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
+    if (typeof window !== 'undefined') {
       const sp = new URLSearchParams(window.location.search);
-      const tabParam = sp.get("tab");
-      if (tabParam && ["moderation", "users", "blog", "messages"].includes(tabParam)) {
+      const tabParam = sp.get('tab');
+      if (
+        tabParam &&
+        ['moderation', 'users', 'categories', 'blog', 'messages'].includes(tabParam)
+      ) {
         setActiveTab(tabParam as any);
       }
-      if (sp.get("new") === "1") {
-        setActiveTab("blog");
+      if (sp.get('new') === '1') {
+        setActiveTab('blog');
         setShowBlogEditor(true);
       }
     }
@@ -157,6 +181,105 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     loadAdminData();
   }, [loadAdminData]);
+
+  // Category Tree Handlers
+  const handleCreateMainCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCatName.trim() || creatingCat) return;
+    setCreatingCat(true);
+    try {
+      const res = await fetch(`${API_URL}/admin/categories`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+        body: JSON.stringify({ name: newCatName.trim(), icon: newCatIcon }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        notify(`Category "${newCatName.trim()}" added!`);
+        setNewCatName('');
+        if (data.category?.id) {
+          setExpandedCatIds((prev) => ({ ...prev, [data.category.id]: true }));
+        }
+        loadAdminData();
+      } else {
+        notify(data.error || 'Could not add category');
+      }
+    } catch {
+      notify('Network error creating category');
+    } finally {
+      setCreatingCat(false);
+    }
+  };
+
+  const handleDeleteMainCategory = async (cat: any) => {
+    if (!confirm(`Delete main category "${cat.name}" and all its subcategories?`)) return;
+    try {
+      const res = await fetch(`${API_URL}/admin/categories/${cat.id}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders(),
+      });
+      if (res.ok) {
+        notify(`Deleted category "${cat.name}"`);
+        loadAdminData();
+      } else {
+        const d = await res.json();
+        notify(d.error || 'Could not delete category');
+      }
+    } catch {
+      notify('Network error deleting category');
+    }
+  };
+
+  const handleAddSubNode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!addingNodeTarget || !newNodeName.trim() || savingNode) return;
+    setSavingNode(true);
+    try {
+      const res = await fetch(`${API_URL}/admin/categories/${addingNodeTarget.catId}/nodes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+        body: JSON.stringify({
+          path: addingNodeTarget.path,
+          name: newNodeName.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        notify(`Added "${newNodeName.trim()}"`);
+        setExpandedCatIds((prev) => ({ ...prev, [addingNodeTarget.catId]: true }));
+        setNewNodeName('');
+        setAddingNodeTarget(null);
+        loadAdminData();
+      } else {
+        notify(data.error || 'Failed to add subcategory');
+      }
+    } catch {
+      notify('Network error adding subcategory');
+    } finally {
+      setSavingNode(false);
+    }
+  };
+
+  const handleDeleteSubNode = async (catId: number, path: string[]) => {
+    const targetName = path[path.length - 1];
+    if (!confirm(`Remove "${targetName}" and any nested items inside it?`)) return;
+    try {
+      const res = await fetch(`${API_URL}/admin/categories/${catId}/nodes`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+        body: JSON.stringify({ path }),
+      });
+      if (res.ok) {
+        notify(`Removed "${targetName}"`);
+        loadAdminData();
+      } else {
+        const d = await res.json();
+        notify(d.error || 'Failed to remove item');
+      }
+    } catch {
+      notify('Network error removing item');
+    }
+  };
 
   // Ad Moderation Handlers
   const handleModerateAd = async (adId: number, status: 'Available' | 'Rejected') => {
@@ -366,7 +489,7 @@ export default function AdminDashboardPage() {
             Super Admin Governance &amp; CMS
           </h1>
           <p className="text-xs text-gray-500 mt-0.5">
-            Moderate marketplace listings, verify seller KYC badges, and manage SEO editorial content.
+            Moderate marketplace listings, verify seller KYC badges, manage 4-level categories, and publish SEO content.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -400,8 +523,8 @@ export default function AdminDashboardPage() {
           </p>
         </div>
         <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-          <p className="text-[11px] font-bold text-gray-400 uppercase">Published Blogs</p>
-          <p className="text-2xl font-black text-brand-orange mt-1">{stats.publishedPosts}</p>
+          <p className="text-[11px] font-bold text-gray-400 uppercase">Categories</p>
+          <p className="text-2xl font-black text-brand-orange mt-1">{categories.length}</p>
         </div>
         <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
           <p className="text-[11px] font-bold text-gray-400 uppercase">Unread Inbox</p>
@@ -432,6 +555,17 @@ export default function AdminDashboardPage() {
           }`}
         >
           <Users className="w-4 h-4" /> Users &amp; KYC ({users.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('categories')}
+          className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 transition ${
+            activeTab === 'categories'
+              ? 'bg-gray-900 text-white'
+              : 'text-gray-600 hover:bg-gray-100'
+          }`}
+        >
+          <FolderTree className="w-4 h-4" /> Categories ({categories.length})
         </button>
         <button
           type="button"
@@ -686,7 +820,297 @@ export default function AdminDashboardPage() {
         </div>
       )}
 
-      {/* TAB 3: SEO BLOG CMS */}
+      {/* TAB 3: 4-LEVEL CATEGORY TREE GOVERNANCE */}
+      {activeTab === 'categories' && (
+        <div className="space-y-6">
+          {/* Add New Main Category (Level 1) */}
+          <form
+            onSubmit={handleCreateMainCategory}
+            className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex flex-col sm:flex-row sm:items-end gap-3"
+          >
+            <div className="flex-1">
+              <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1">
+                New Main Category (Level 1) *
+              </label>
+              <input
+                type="text"
+                required
+                value={newCatName}
+                onChange={(e) => setNewCatName(e.target.value)}
+                placeholder="e.g. Phones & Tablets, Vehicles, Fashion..."
+                className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-sm outline-none focus:border-brand-orange"
+              />
+            </div>
+
+            <div className="w-full sm:w-48">
+              <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1">
+                Category Icon
+              </label>
+              <select
+                value={newCatIcon}
+                onChange={(e) => setNewCatIcon(e.target.value)}
+                className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-white outline-none focus:border-brand-orange"
+              >
+                <option value="layers">General (Layers)</option>
+                <option value="smartphone">Phones &amp; Tablets</option>
+                <option value="car">Vehicles</option>
+                <option value="home">Property</option>
+                <option value="tv">Electronics / Laptops</option>
+                <option value="sofa">Home &amp; Furniture</option>
+                <option value="shirt">Fashion &amp; Beauty</option>
+                <option value="briefcase">Jobs &amp; Services</option>
+                <option value="wrench">Repair &amp; Construction</option>
+                <option value="baby">Babies &amp; Kids</option>
+                <option value="paw">Animals &amp; Pets</option>
+                <option value="dumbbell">Sports &amp; Outdoors</option>
+              </select>
+            </div>
+
+            <button
+              type="submit"
+              disabled={creatingCat}
+              className="px-5 py-2.5 bg-brand-orange hover:bg-orange-700 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 shadow-sm transition disabled:opacity-60"
+            >
+              {creatingCat ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+              Add Main Category
+            </button>
+          </form>
+
+          {/* Inline Add Child Node Prompt */}
+          {addingNodeTarget && (
+            <form
+              onSubmit={handleAddSubNode}
+              className="bg-orange-50 border border-orange-200 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+            >
+              <div className="flex-1">
+                <p className="text-[11px] font-black text-brand-orange uppercase mb-1">
+                  Adding inside: {addingNodeTarget.label}
+                </p>
+                <input
+                  type="text"
+                  autoFocus
+                  required
+                  value={newNodeName}
+                  onChange={(e) => setNewNodeName(e.target.value)}
+                  placeholder="Enter subcategory name..."
+                  className="w-full px-3.5 py-2 bg-white border border-orange-300 rounded-lg text-sm outline-none focus:border-brand-orange"
+                />
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="submit"
+                  disabled={savingNode}
+                  className="px-4 py-2 bg-brand-orange hover:bg-orange-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5"
+                >
+                  {savingNode && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  Save Item
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAddingNodeTarget(null);
+                    setNewNodeName('');
+                  }}
+                  className="px-3 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg text-xs font-bold"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* 4-Level Category Tree List */}
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm divide-y divide-gray-100">
+            <div className="p-5 border-b border-gray-100">
+              <h2 className="font-bold text-gray-900 text-base">
+                4-Level Category Hierarchy (Category → Subcategory → Sub-sub → 4th Level)
+              </h2>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Expand any category to add or remove subcategories down to 4 levels deep.
+              </p>
+            </div>
+
+            {categories.map((cat) => {
+              const isExpanded = !!expandedCatIds[cat.id];
+              const tree: any[] = Array.isArray(cat.category_tree) ? cat.category_tree : [];
+
+              return (
+                <div key={cat.id} className="p-4">
+                  {/* Level 1 Row */}
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setExpandedCatIds((prev) => ({ ...prev, [cat.id]: !prev[cat.id] }))
+                      }
+                      className="flex items-center gap-2 text-left font-black text-sm text-gray-900 hover:text-brand-orange"
+                    >
+                      {isExpanded ? (
+                        <ChevronDown className="w-4 h-4 text-brand-orange" />
+                      ) : (
+                        <ChevronRight className="w-4 h-4 text-gray-400" />
+                      )}
+                      <span>{cat.name}</span>
+                      <span className="text-[10px] font-bold bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+                        {tree.length} subcategories
+                      </span>
+                    </button>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setExpandedCatIds((prev) => ({ ...prev, [cat.id]: true }));
+                          setAddingNodeTarget({
+                            catId: cat.id,
+                            path: [],
+                            label: `${cat.name} (Level 2 Subcategory)`,
+                          });
+                          setNewNodeName('');
+                        }}
+                        className="px-2.5 py-1 bg-orange-50 hover:bg-orange-100 text-brand-orange border border-orange-200 rounded-lg text-[11px] font-bold flex items-center gap-1"
+                      >
+                        <Plus className="w-3 h-3" /> Add Subcategory
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteMainCategory(cat)}
+                        className="px-2.5 py-1 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-lg text-[11px] font-bold flex items-center gap-1"
+                      >
+                        <Trash2 className="w-3 h-3" /> Delete
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Expanded Tree (Levels 2 -> 3 -> 4) */}
+                  {isExpanded && (
+                    <div className="mt-3 pl-5 border-l-2 border-orange-100 space-y-2.5">
+                      {tree.length === 0 ? (
+                        <p className="text-xs text-gray-400 italic">
+                          No subcategories yet. Click &ldquo;+ Add Subcategory&rdquo; above.
+                        </p>
+                      ) : (
+                        tree.map((l2: any) => (
+                          <div key={l2.name} className="bg-gray-50 rounded-xl p-3 space-y-2">
+                            {/* Level 2 Row */}
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <span className="text-xs font-bold text-gray-800">
+                                {l2.name}
+                                <span className="ml-2 text-[10px] font-normal text-gray-400">
+                                  (Level 2)
+                                </span>
+                              </span>
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setAddingNodeTarget({
+                                      catId: cat.id,
+                                      path: [l2.name],
+                                      label: `${cat.name} → ${l2.name} (Level 3 Sub-subcategory)`,
+                                    });
+                                    setNewNodeName('');
+                                  }}
+                                  className="px-2 py-0.5 bg-white hover:bg-orange-50 text-brand-orange border border-gray-200 rounded text-[10px] font-bold inline-flex items-center gap-1"
+                                >
+                                  <Plus className="w-3 h-3" /> Add Sub-sub
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteSubNode(cat.id, [l2.name])}
+                                  className="px-2 py-0.5 bg-white hover:bg-red-50 text-red-600 border border-gray-200 rounded text-[10px] font-bold inline-flex items-center gap-1"
+                                >
+                                  <Trash2 className="w-3 h-3" /> Remove
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Level 3 Rows */}
+                            {Array.isArray(l2.children) && l2.children.length > 0 && (
+                              <div className="pl-4 border-l-2 border-gray-200 space-y-2">
+                                {l2.children.map((l3: any) => (
+                                  <div
+                                    key={l3.name}
+                                    className="bg-white rounded-lg p-2.5 border border-gray-100 space-y-1.5"
+                                  >
+                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                      <span className="text-xs font-semibold text-gray-700">
+                                        • {l3.name}
+                                        <span className="ml-1.5 text-[10px] text-gray-400">
+                                          (Level 3)
+                                        </span>
+                                      </span>
+                                      <div className="flex items-center gap-1.5">
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setAddingNodeTarget({
+                                              catId: cat.id,
+                                              path: [l2.name, l3.name],
+                                              label: `${cat.name} → ${l2.name} → ${l3.name} (Level 4)`,
+                                            });
+                                            setNewNodeName('');
+                                          }}
+                                          className="px-2 py-0.5 bg-orange-50 hover:bg-orange-100 text-brand-orange rounded text-[10px] font-bold inline-flex items-center gap-1"
+                                        >
+                                          <Plus className="w-3 h-3" /> Add 4th Level
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            handleDeleteSubNode(cat.id, [l2.name, l3.name])
+                                          }
+                                          className="px-2 py-0.5 bg-red-50 hover:bg-red-100 text-red-600 rounded text-[10px] font-bold inline-flex items-center gap-1"
+                                        >
+                                          <Trash2 className="w-3 h-3" /> Remove
+                                        </button>
+                                      </div>
+                                    </div>
+
+                                    {/* Level 4 Pills */}
+                                    {Array.isArray(l3.children) && l3.children.length > 0 && (
+                                      <div className="flex flex-wrap gap-1.5 pt-1 pl-3">
+                                        {l3.children.map((l4: any) => (
+                                          <span
+                                            key={l4.name}
+                                            className="inline-flex items-center gap-1 bg-orange-50 text-gray-800 border border-orange-200 px-2.5 py-0.5 rounded-full text-[11px] font-semibold"
+                                          >
+                                            <span>{l4.name}</span>
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                handleDeleteSubNode(cat.id, [
+                                                  l2.name,
+                                                  l3.name,
+                                                  l4.name,
+                                                ])
+                                              }
+                                              title={`Remove ${l4.name}`}
+                                              className="text-red-500 hover:text-red-700"
+                                            >
+                                              <XCircle className="w-3.5 h-3.5" />
+                                            </button>
+                                          </span>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 4: SEO BLOG CMS */}
       {activeTab === 'blog' && (
         <div className="space-y-6">
           <div className="flex items-center justify-between bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
@@ -812,7 +1236,7 @@ export default function AdminDashboardPage() {
                     type="text"
                     value={blogForm.seo_title}
                     onChange={(e) => setBlogForm({ ...blogForm, seo_title: e.target.value })}
-                    className="w-full px-3.5 py-2 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-orange"
+                    className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-orange"
                   />
                 </div>
 
@@ -825,7 +1249,7 @@ export default function AdminDashboardPage() {
                     value={blogForm.seo_keywords}
                     onChange={(e) => setBlogForm({ ...blogForm, seo_keywords: e.target.value })}
                     placeholder="nigeria marketplace, buy phones lagos, abuja cars"
-                    className="w-full px-3.5 py-2 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-orange"
+                    className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-orange"
                   />
                 </div>
               </div>
@@ -846,7 +1270,7 @@ export default function AdminDashboardPage() {
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm divide-y divide-gray-100">
             {posts.length === 0 ? (
               <div className="p-10 text-center text-xs text-gray-500">
-                No blog articles yet. Click "Write New Article" to publish your first post.
+                No blog articles yet. Click &ldquo;Write New Article&rdquo; to publish your first post.
               </div>
             ) : (
               posts.map((post) => (
@@ -909,7 +1333,7 @@ export default function AdminDashboardPage() {
         </div>
       )}
 
-      {/* TAB 4: CONTACT INBOX */}
+      {/* TAB 5: CONTACT INBOX */}
       {activeTab === 'messages' && (
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm divide-y divide-gray-100">
           <div className="p-5 border-b border-gray-100">
