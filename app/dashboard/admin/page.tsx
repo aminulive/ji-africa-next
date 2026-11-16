@@ -46,8 +46,9 @@ function getAdThumb(ad: any) {
 export default function AdminDashboardPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<
-    'moderation' | 'users' | 'categories' | 'blog' | 'messages'
+    'moderation' | 'users' | 'reviews' | 'categories' | 'blog' | 'messages'
   >('moderation');
+  const [adminReviews, setAdminReviews] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState('');
 
@@ -139,13 +140,14 @@ export default function AdminDashboardPage() {
 
     try {
       const headers = getAuthHeaders();
-      const [statsRes, adsRes, usersRes, catsRes, blogRes, msgRes] = await Promise.all([
+      const [statsRes, adsRes, usersRes, catsRes, blogRes, msgRes, revRes] = await Promise.all([
         fetch(`${API_URL}/admin/stats`, { headers }),
         fetch(`${API_URL}/admin/ads?status=${adFilter}`, { headers }),
         fetch(`${API_URL}/admin/users?search=${encodeURIComponent(userSearch)}`, { headers }),
         fetch(`${API_URL}/admin/categories`, { headers }),
         fetch(`${API_URL}/admin/blog`, { headers }),
         fetch(`${API_URL}/admin/messages`, { headers }),
+        fetch(`${API_URL}/admin/reviews`, { headers }),
       ]);
 
       if (statsRes.ok) setStats(await statsRes.json());
@@ -158,6 +160,7 @@ export default function AdminDashboardPage() {
       if (catsRes.ok) setCategories(await catsRes.json());
       if (blogRes.ok) setPosts(await blogRes.json());
       if (msgRes.ok) setMessages(await msgRes.json());
+      if (revRes?.ok) setAdminReviews(await revRes.json());
     } catch (err) {
       console.error('Admin load error:', err);
     } finally {
@@ -369,6 +372,33 @@ export default function AdminDashboardPage() {
       }
     } catch {}
     setReviewActionLoading(false);
+  };
+
+  const handleModerateReview = async (reviewId: number, status: "published" | "hidden") => {
+    try {
+      const res = await fetch(`${API_URL}/admin/reviews/${reviewId}/moderate`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({ status }),
+      });
+      if (res.ok) {
+        notify(`Review marked as ${status}`);
+        loadAdminData();
+      }
+    } catch {}
+  };
+
+  const handleDeleteReview = async (reviewId: number) => {
+    try {
+      const res = await fetch(`${API_URL}/admin/reviews/${reviewId}`, {
+        method: "DELETE",
+        headers: getAuthHeaders(),
+      });
+      if (res.ok) {
+        notify("Review deleted");
+        loadAdminData();
+      }
+    } catch {}
   };
 
   const handleRoleChange = async (userId: number, role: string) => {
@@ -585,6 +615,17 @@ export default function AdminDashboardPage() {
           }`}
         >
           <Users className="w-4 h-4" /> Users &amp; KYC ({users.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('reviews')}
+          className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 transition ${
+            activeTab === 'reviews'
+              ? 'bg-gray-900 text-white'
+              : 'text-gray-600 hover:bg-gray-100'
+          }`}
+        >
+          <ShieldCheck className="w-4 h-4" /> Reviews ({adminReviews.length})
         </button>
         <button
           type="button"
@@ -978,6 +1019,81 @@ export default function AdminDashboardPage() {
                 </div>
               </div>
             </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB 2B: REVIEWS MODERATION */}
+      {activeTab === 'reviews' && (
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm divide-y divide-gray-100">
+          <div className="p-5 border-b border-gray-100">
+            <h2 className="font-bold text-gray-900 text-base">Buyer &amp; Storefront Reviews Moderation</h2>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Auto-flagged spam reviews appear at the top. Approve legitimate feedback or remove abuse.
+            </p>
+          </div>
+          {adminReviews.length === 0 ? (
+            <div className="p-10 text-center text-xs text-gray-500">No reviews submitted yet.</div>
+          ) : (
+            adminReviews.map((rev) => (
+              <div key={rev.id} className="p-5 flex flex-col sm:flex-row justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-bold text-sm text-gray-900">{rev.reviewer_name || "Buyer"}</span>
+                    <span className="text-xs font-black text-amber-500">{rev.rating}★</span>
+                    <span className="text-xs text-gray-500">
+                      → {rev.seller_shop_name || rev.seller_name} {rev.ad_title ? `(${rev.ad_title})` : "(Shop)"}
+                    </span>
+                    <span
+                      className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
+                        rev.status === "flagged"
+                          ? "bg-red-100 text-red-700"
+                          : rev.status === "hidden"
+                          ? "bg-gray-200 text-gray-700"
+                          : "bg-emerald-100 text-emerald-700"
+                      }`}
+                    >
+                      {rev.status}
+                    </span>
+                  </div>
+                  {rev.flag_reason && (
+                    <p className="text-[11px] font-bold text-red-600">Flag reason: {rev.flag_reason}</p>
+                  )}
+                  <p className="text-xs text-gray-700 leading-relaxed">{rev.comment}</p>
+                  {rev.seller_reply && (
+                    <p className="text-[11px] text-gray-500 italic">Seller reply: "{rev.seller_reply}"</p>
+                  )}
+                </div>
+
+                <div className="flex items-start gap-2 shrink-0">
+                  {rev.status !== "published" && (
+                    <button
+                      type="button"
+                      onClick={() => handleModerateReview(rev.id, "published")}
+                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold"
+                    >
+                      Approve
+                    </button>
+                  )}
+                  {rev.status === "published" && (
+                    <button
+                      type="button"
+                      onClick={() => handleModerateReview(rev.id, "hidden")}
+                      className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold"
+                    >
+                      Hide
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteReview(rev.id)}
+                    className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            ))
           )}
         </div>
       )}

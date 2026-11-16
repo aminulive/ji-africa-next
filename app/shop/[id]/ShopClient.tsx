@@ -1,5 +1,6 @@
 "use client";
 
+import { formatLastSeen } from "../../utils/activity";
 import { useState, useEffect, Suspense } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
@@ -74,6 +75,9 @@ function ShopContent() {
   const [hoverRating, setHoverRating] = useState(0);
   const [comment, setComment] = useState("");
   const [submittingReview, setSubmittingReview] = useState(false);
+  const [replyingReviewId, setReplyingReviewId] = useState<number | null>(null);
+  const [replyDraft, setReplyDraft] = useState("");
+  const [savingReply, setSavingReply] = useState(false);
   const [toast, setToast] = useState("");
 
   const notify = (msg: string) => {
@@ -202,18 +206,25 @@ function ShopContent() {
       });
 
       const data = await res.json();
-      if (res.ok && data.review) {
-        setReviews([
-          {
+      if (res.ok) {
+        if (data.flagged) {
+          setComment("");
+          setRating(5);
+          notify(data.message || "Review submitted for moderator approval.");
+        } else if (data.review) {
+          const enriched = {
             ...data.review,
             reviewer_name: currentUser.full_name,
             reviewer_avatar: currentUser.profile_image,
-          },
-          ...reviews,
-        ]);
-        setComment("");
-        setRating(5);
-        notify("Shop review submitted!");
+          };
+          setReviews((prev) => {
+            const filtered = prev.filter((item) => Number(item.reviewer_id) !== Number(currentUser.id));
+            return [enriched, ...filtered];
+          });
+          setComment("");
+          setRating(5);
+          notify(data.message || "Shop review submitted!");
+        }
       } else {
         notify(data.error || "Could not submit review");
       }
@@ -221,6 +232,37 @@ function ShopContent() {
       notify("Server error submitting review");
     } finally {
       setSubmittingReview(false);
+    }
+  };
+
+  const handlePostSellerReply = async (reviewId: number) => {
+    if (!replyDraft.trim()) return;
+    setSavingReply(true);
+    try {
+      const token = localStorage.getItem("ji_token");
+      const res = await fetch(`${API_URL}/users/reviews/${reviewId}/reply`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ reply: replyDraft.trim() }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setReviews((prev) =>
+          prev.map((r) => (Number(r.id) === Number(reviewId) ? { ...r, seller_reply: replyDraft.trim() } : r))
+        );
+        setReplyingReviewId(null);
+        setReplyDraft("");
+        notify("Reply published!");
+      } else {
+        notify(data.error || "Could not post reply");
+      }
+    } catch {
+      notify("Server error posting reply");
+    } finally {
+      setSavingReply(false);
     }
   };
 
@@ -336,7 +378,7 @@ function ShopContent() {
               )}
               {shopUser.shop_name && <span>Managed by {shopUser.full_name}</span>}
               <span className="inline-flex items-center gap-1 bg-gray-100 px-2.5 py-0.5 rounded-full text-gray-600">
-                <Calendar className="w-3 h-3" /> Member since {memberYear}
+                <Calendar className="w-3 h-3" /> {formatLastSeen(shopUser.last_active_at).label} • Member since {memberYear}
               </span>
             </div>
 
@@ -542,7 +584,12 @@ function ShopContent() {
               Shop Reviews ({reviews.length})
             </h3>
 
-            {currentUser ? (
+            {currentUser && Number(currentUser.id || currentUser.userId || 0) > 0 && Number(currentUser.id || currentUser.userId) === Number(shopUser.id) ? (
+              <div className="mb-6 pb-5 border-b border-gray-100 bg-gray-50 p-3.5 rounded-xl text-xs text-gray-600">
+                <p className="font-bold text-gray-800">Owner Storefront View</p>
+                <p className="mt-0.5">Self-reviews are disabled. You can reply publicly to buyer reviews below.</p>
+              </div>
+            ) : currentUser ? (
               <form
                 onSubmit={handleSubmitReview}
                 className="mb-6 pb-6 border-b border-gray-100"
@@ -650,6 +697,58 @@ function ShopContent() {
                         ))}
                       </div>
                       <p className="text-sm text-gray-600 mt-1">{r.comment}</p>
+                      {r.seller_reply && (
+                        <div className="mt-2.5 pl-3 border-l-2 border-brand-orange bg-orange-50/60 p-2.5 rounded-r-lg">
+                          <p className="text-[11px] font-bold text-brand-orange">Seller Response</p>
+                          <p className="text-xs text-gray-700 mt-0.5">{r.seller_reply}</p>
+                        </div>
+                      )}
+                      {currentUser && Number(currentUser.id) === Number(shopUser.id) && !r.seller_reply && (
+                        <div className="mt-2">
+                          {replyingReviewId === Number(r.id) ? (
+                            <div className="space-y-2 mt-2">
+                              <input
+                                type="text"
+                                value={replyDraft}
+                                onChange={(e) => setReplyDraft(e.target.value)}
+                                placeholder="Write an official seller response..."
+                                className="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-orange"
+                              />
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  disabled={savingReply}
+                                  onClick={() => handlePostSellerReply(Number(r.id))}
+                                  className="px-3 py-1 bg-gray-900 text-white rounded text-[11px] font-bold"
+                                >
+                                  {savingReply ? "Posting..." : "Post Reply"}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setReplyingReviewId(null);
+                                    setReplyDraft("");
+                                  }}
+                                  className="px-2.5 py-1 bg-gray-100 text-gray-600 rounded text-[11px] font-bold"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setReplyingReviewId(Number(r.id));
+                                setReplyDraft("");
+                              }}
+                              className="text-[11px] font-bold text-brand-orange hover:underline"
+                            >
+                              Reply to buyer
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))

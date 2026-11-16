@@ -77,7 +77,10 @@ function SellerDashboardContent() {
 
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'listings' | 'callbacks' | 'payments'>('listings');
+  const [activeTab, setActiveTab] = useState<'listings' | 'offers' | 'callbacks' | 'payments'>('listings');
+  const [offers, setOffers] = useState<any[]>([]);
+  const [priceEditAd, setPriceEditAd] = useState<any>(null);
+  const [newPriceInput, setNewPriceInput] = useState("");
   const [statusFilter, setStatusFilter] = useState<'all' | 'Available' | 'Sold' | 'VIP'>('all');
 
   const [ads, setAds] = useState<any[]>([]);
@@ -116,14 +119,19 @@ function SellerDashboardContent() {
     }
 
     try {
-      const res = await fetch(`${API_URL}/dashboard/seller`, {
-        headers: getAuthHeaders(),
-      });
+      const [res, offersRes] = await Promise.all([
+        fetch(`${API_URL}/dashboard/seller`, { headers: getAuthHeaders() }),
+        fetch(`${API_URL}/dashboard/offers`, { headers: getAuthHeaders() }),
+      ]);
       if (res.ok) {
         const data = await res.json();
         setAds(data.ads || []);
         setCallbacks(data.callbacks || []);
         setTransactions(data.transactions || []);
+      }
+      if (offersRes?.ok) {
+        const oData = await offersRes.json();
+        setOffers(oData.offers || []);
       }
     } catch (err) {
       console.error('Seller dashboard error:', err);
@@ -170,6 +178,67 @@ function SellerDashboardContent() {
       if (res.ok) {
         notify(`Listing marked as ${nextStatus}`);
         loadDashboard();
+      }
+    } catch {}
+  };
+
+  const handleBumpAd = async (ad: any) => {
+    try {
+      const res = await fetch(`${API_URL}/dashboard/ads/${ad.id}/bump`, {
+        method: "POST",
+        headers: getAuthHeaders(),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        notify(data.message || "Advert bumped to the top!");
+        loadDashboard();
+      } else {
+        notify(data.error || "Free bump cooldown active");
+      }
+    } catch {
+      notify("Server error bumping advert");
+    }
+  };
+
+  const handleSaveNewPrice = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!priceEditAd) return;
+    const numericPrice = Number(newPriceInput);
+    if (!numericPrice || numericPrice <= 0) return;
+    try {
+      const res = await fetch(`${API_URL}/dashboard/ads/${priceEditAd.id}/price`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({ price: numericPrice }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        notify(data.message || "Price updated!");
+        setPriceEditAd(null);
+        loadDashboard();
+      } else {
+        notify(data.error || "Could not update price");
+      }
+    } catch {}
+  };
+
+  const handleRespondOffer = async (offer: any, status: "accepted" | "declined") => {
+    try {
+      const res = await fetch(`${API_URL}/dashboard/offers/${offer.id}/respond`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({ status }),
+      });
+      if (res.ok) {
+        notify(`Offer ${status}!`);
+        loadDashboard();
+        if (status === "accepted" && offer.buyer_phone) {
+          const cleanPhone = String(offer.buyer_phone).replace(/[^0-9]/g, "").replace(/^0/, "234");
+          const msg = encodeURIComponent(
+            `Hello ${offer.buyer_name}, I have accepted your offer of ₦${Number(offer.offered_price).toLocaleString("en-NG")} for "${offer.ad_title}" on ji.africa!`
+          );
+          window.open(`https://wa.me/${cleanPhone}?text=${msg}`, "_blank");
+        }
       }
     } catch {}
   };
@@ -327,6 +396,15 @@ function SellerDashboardContent() {
         </button>
         <button
           type="button"
+          onClick={() => setActiveTab('offers')}
+          className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 transition ${
+            activeTab === 'offers' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100'
+          }`}
+        >
+          <Coins className="w-4 h-4 text-brand-orange" /> Buyer Offers ({offers.length})
+        </button>
+        <button
+          type="button"
           onClick={() => setActiveTab('callbacks')}
           className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 transition ${
             activeTab === 'callbacks' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100'
@@ -443,6 +521,28 @@ function SellerDashboardContent() {
                       {ad.is_vip ? 'Extend VIP' : 'Boost Ad'}
                     </button>
 
+                    {ad.status === "Available" && (
+                      <button
+                        type="button"
+                        onClick={() => handleBumpAd(ad)}
+                        className="px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-xs font-bold transition"
+                        title="Free 7-day bump back to top of feed"
+                      >
+                        Bump ↑
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPriceEditAd(ad);
+                        setNewPriceInput(String(ad.price || ""));
+                      }}
+                      className="px-3 py-2 bg-orange-50 hover:bg-orange-100 text-brand-orange rounded-lg text-xs font-bold transition"
+                    >
+                      Edit Price
+                    </button>
+
                     <button
                       type="button"
                       onClick={() => handleToggleStatus(ad)}
@@ -471,6 +571,106 @@ function SellerDashboardContent() {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* TAB 1B: BUYER OFFERS */}
+      {activeTab === 'offers' && (
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm divide-y divide-gray-100">
+          <div className="p-5 border-b border-gray-100">
+            <h2 className="font-bold text-gray-900 text-base">Buyer Price Offers</h2>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Accepting an offer notifies the buyer and opens a pre-filled WhatsApp deal confirmation.
+            </p>
+          </div>
+          {offers.length === 0 ? (
+            <div className="p-10 text-center text-xs text-gray-500">
+              No buyer offers yet. Buyers can click "Make an Offer" on any of your listings.
+            </div>
+          ) : (
+            offers.map((off) => (
+              <div key={off.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-bold text-sm text-gray-900">{off.buyer_name}</span>
+                    <span className="text-xs font-semibold text-brand-orange">{off.buyer_phone}</span>
+                    <span
+                      className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
+                        off.status === "accepted"
+                          ? "bg-emerald-100 text-emerald-700"
+                          : off.status === "declined"
+                          ? "bg-red-100 text-red-700"
+                          : "bg-amber-100 text-amber-800"
+                      }`}
+                    >
+                      {off.status}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-700">
+                    Offered <span className="font-black text-emerald-700">₦{Number(off.offered_price).toLocaleString("en-NG")}</span>{" "}
+                    for <span className="font-bold">{off.ad_title || `Ad #${off.ad_id}`}</span>{" "}
+                    {off.asking_price ? <span className="text-gray-400">(Asking: ₦{Number(off.asking_price).toLocaleString("en-NG")})</span> : null}
+                  </p>
+                  {off.message && <p className="text-xs text-gray-500 italic">"{off.message}"</p>}
+                </div>
+
+                {off.status === "pending" && (
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => handleRespondOffer(off, "accepted")}
+                      className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold"
+                    >
+                      Accept &amp; WhatsApp
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRespondOffer(off, "declined")}
+                      className="px-3 py-2 bg-gray-100 hover:bg-red-100 hover:text-red-700 text-gray-700 rounded-lg text-xs font-bold"
+                    >
+                      Decline
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {/* QUICK PRICE EDIT MODAL */}
+      {priceEditAd && (
+        <div className="fixed inset-0 bg-gray-900/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-sm rounded-2xl overflow-hidden shadow-2xl border border-gray-200">
+            <div className="p-4 bg-gray-900 text-white flex items-center justify-between">
+              <h3 className="font-black text-sm">Update Listing Price</h3>
+              <button type="button" onClick={() => setPriceEditAd(null)} className="text-gray-400 hover:text-white">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <form onSubmit={handleSaveNewPrice} className="p-5 space-y-4">
+              <p className="text-xs text-gray-600">
+                Lowering your price automatically sends a <span className="font-bold text-brand-orange">Price-Drop Alert</span> to everyone who saved this item!
+              </p>
+              <div>
+                <label className="block text-[11px] font-black uppercase text-gray-600 mb-1">New Price (₦)</label>
+                <input
+                  type="number"
+                  required
+                  min={1}
+                  value={newPriceInput}
+                  onChange={(e) => setNewPriceInput(e.target.value)}
+                  className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm font-black text-brand-orange outline-none focus:border-brand-orange"
+                />
+              </div>
+              <button
+                type="submit"
+                className="w-full py-2.5 bg-brand-orange hover:bg-orange-700 text-white rounded-xl text-xs font-black"
+              >
+                Save Price
+              </button>
+            </form>
+          </div>
         </div>
       )}
 

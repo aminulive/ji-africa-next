@@ -1,5 +1,6 @@
 "use client";
 
+import { formatLastSeen } from "../utils/activity";
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -66,6 +67,12 @@ export default function AdDetailsClient({
   const [hoverRating, setHoverRating] = useState(0);
   const [comment, setComment] = useState('');
   const [submittingReview, setSubmittingReview] = useState(false);
+  const [showOfferModal, setShowOfferModal] = useState(false);
+  const [offerPrice, setOfferPrice] = useState("");
+  const [offerName, setOfferName] = useState("");
+  const [offerPhone, setOfferPhone] = useState("");
+  const [offerNote, setOfferNote] = useState("");
+  const [submittingOffer, setSubmittingOffer] = useState(false);
 
   // Request Callback Modal State
   const [showCallbackModal, setShowCallbackModal] = useState(false);
@@ -277,47 +284,77 @@ export default function AdDetailsClient({
 
     try {
       const token = localStorage.getItem('ji_token');
-      if (token) {
-        const res = await fetch(`${API_URL}/ads/${ad.id}/reviews`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ rating, comment: comment.trim() }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data?.review) {
-            setReviews((prev) => [data.review, ...prev]);
-            setComment('');
-            setRating(5);
-            notify('Review published!');
-            setSubmittingReview(false);
-            return;
-          }
-        }
-      }
-    } catch {}
+      const res = await fetch(`${API_URL}/ads/${ad.id}/reviews`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ rating, comment: comment.trim() }),
+      });
 
-    const fallbackReview = {
-      name: currentUser.full_name,
-      avatar: currentUser.profile_image,
-      rating,
-      comment: comment.trim(),
-      date: new Date().toLocaleDateString('en-GB'),
-    };
-    const updated = [fallbackReview, ...reviews];
-    setReviews(updated);
-    setComment('');
-    setRating(5);
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        if (data?.flagged) {
+          setComment('');
+          setRating(5);
+          notify(data.message || 'Review submitted for moderator approval.');
+        } else if (data?.review) {
+          setReviews((prev) => [
+            data.review,
+            ...prev.filter((r) => r.name !== currentUser.full_name),
+          ]);
+          setComment('');
+          setRating(5);
+          notify(data.updated ? 'Your previous review was updated!' : 'Review published!');
+        }
+      } else {
+        notify(data?.error || 'You cannot review your own listing.');
+      }
+    } catch {
+      notify('Network error submitting review');
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
+
+  const handleSubmitOffer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const numericOffer = Number(String(offerPrice).replace(/[^0-9.]/g, ""));
+    if (!numericOffer || numericOffer <= 0) {
+      notify("Enter a valid offer amount in Naira");
+      return;
+    }
+    if (!offerName.trim() || !offerPhone.trim()) {
+      notify("Please enter your name and phone number");
+      return;
+    }
+    setSubmittingOffer(true);
     try {
-      const all = JSON.parse(localStorage.getItem('ji_reviews') || '{}');
-      all[String(ad.id)] = updated;
-      localStorage.setItem('ji_reviews', JSON.stringify(all));
-    } catch {}
-    setSubmittingReview(false);
-    notify('Review submitted successfully!');
+      const res = await fetch(`${API_URL}/ads/${ad.id}/offers`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          offered_price: numericOffer,
+          buyer_name: offerName.trim(),
+          buyer_phone: offerPhone.trim(),
+          message: offerNote.trim(),
+          buyer_id: currentUser?.id || currentUser?.userId || null,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        notify(data.message || "Offer sent to seller!");
+        setShowOfferModal(false);
+        setOfferNote("");
+      } else {
+        notify(data.error || "Could not send offer");
+      }
+    } catch {
+      notify("Network error sending offer");
+    } finally {
+      setSubmittingOffer(false);
+    }
   };
 
   const formatNaira = (amount: number) => '₦' + Number(amount).toLocaleString('en-NG');
@@ -633,7 +670,12 @@ export default function AdDetailsClient({
               Buyer Reviews ({reviews.length})
             </h3>
 
-            {currentUser ? (
+            {currentUser && Number(currentUser.id || currentUser.userId || 0) > 0 && Number(currentUser.id || currentUser.userId) === Number(ad.user_id || ad.seller_id || ad.user?.id || ad.seller?.id || 0) ? (
+              <div className="mb-6 pb-5 border-b border-gray-100 bg-gray-50 p-3.5 rounded-xl text-xs text-gray-600">
+                <p className="font-bold text-gray-800">Seller Listing View</p>
+                <p className="mt-0.5">Self-reviews are disabled on your own adverts.</p>
+              </div>
+            ) : currentUser ?  (
               <form
                 onSubmit={handleSubmitReview}
                 className="mb-6 pb-6 border-b border-gray-100"
@@ -798,6 +840,23 @@ export default function AdDetailsClient({
               >
                 <PhoneCall className="w-4 h-4 text-brand-orange" /> Request Seller Callback
               </button>
+                {ad.status === "Sold" ? (
+                  <div className="w-full py-2.5 bg-gray-200 text-gray-700 rounded-xl text-xs font-black text-center uppercase tracking-wider">
+                    Item Marked as Sold
+                  </div>
+                ) : !(currentUser && Number(currentUser.id || currentUser.userId || 0) > 0 && Number(currentUser.id || currentUser.userId) === Number(ad.user_id || ad.seller_id || ad.user?.id || 0)) ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const suggested = Math.round(Number(ad.price || 0) * 0.9);
+                      if (!offerPrice && suggested > 0) setOfferPrice(String(suggested));
+                      setShowOfferModal(true);
+                    }}
+                    className="w-full py-2.5 bg-orange-50 hover:bg-orange-100 border border-orange-200 text-brand-orange rounded-xl text-xs font-black transition flex items-center justify-center gap-1.5"
+                  >
+                    Make an Offer
+                  </button>
+                ) : null}
 
               <div className="grid grid-cols-3 gap-2 pt-1">
                 <button
@@ -1029,6 +1088,108 @@ export default function AdDetailsClient({
           </div>
         </div>
       )}
-    </div>
+    
+      {showOfferModal && (
+        <div className="fixed inset-0 bg-gray-900/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-md rounded-2xl overflow-hidden shadow-2xl border border-gray-200">
+            <div className="p-4 bg-gray-900 text-white flex items-center justify-between">
+              <div>
+                <h3 className="font-black text-sm">Make an Offer</h3>
+                <p className="text-[11px] text-gray-300 truncate max-w-xs">{ad.title}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowOfferModal(false)}
+                className="text-gray-400 hover:text-white text-xs font-bold px-2 py-1"
+              >
+                ✕
+              </button>
+            </div>
+            <form onSubmit={handleSubmitOffer} className="p-5 space-y-4">
+              <div className="bg-orange-50 border border-orange-100 rounded-xl p-3 flex items-center justify-between">
+                <span className="text-xs font-semibold text-gray-600">Seller Asking Price</span>
+                <span className="text-sm font-black text-gray-900">₦{Number(ad.price || 0).toLocaleString("en-NG")}</span>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-black uppercase text-gray-600 mb-1.5">
+                  Your Offer Amount (₦)
+                </label>
+                <input
+                  type="number"
+                  required
+                  min={1}
+                  value={offerPrice}
+                  onChange={(e) => setOfferPrice(e.target.value)}
+                  className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm font-black text-brand-orange outline-none focus:border-brand-orange"
+                  placeholder="e.g. 195000"
+                />
+                {Number(ad.price || 0) > 0 && (
+                  <div className="flex gap-2 mt-2">
+                    {[0.95, 0.9, 0.85].map((pct) => {
+                      const val = Math.round(Number(ad.price) * pct);
+                      return (
+                        <button
+                          key={pct}
+                          type="button"
+                          onClick={() => setOfferPrice(String(val))}
+                          className="px-2.5 py-1 bg-gray-100 hover:bg-orange-100 hover:text-brand-orange rounded-lg text-[11px] font-bold text-gray-700 transition"
+                        >
+                          -{Math.round((1 - pct) * 100)}% (₦{val.toLocaleString("en-NG")})
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-600 mb-1">Your Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={offerName}
+                    onChange={(e) => setOfferName(e.target.value)}
+                    placeholder="Full name"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-orange"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-600 mb-1">Phone / WhatsApp</label>
+                  <input
+                    type="tel"
+                    required
+                    value={offerPhone}
+                    onChange={(e) => setOfferPhone(e.target.value)}
+                    placeholder="08012345678"
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-orange"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-gray-600 mb-1">Note to Seller (Optional)</label>
+                <input
+                  type="text"
+                  value={offerNote}
+                  onChange={(e) => setOfferNote(e.target.value)}
+                  placeholder="e.g. Ready to inspect and pay today in Abuja"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-orange"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={submittingOffer}
+                className="w-full py-3 bg-brand-orange hover:bg-orange-700 text-white rounded-xl text-xs font-black shadow-md disabled:opacity-60"
+              >
+                {submittingOffer ? "Sending Offer..." : "Send Offer to Seller"}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+</div>
   );
 }

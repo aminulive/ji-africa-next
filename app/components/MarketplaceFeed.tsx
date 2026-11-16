@@ -267,6 +267,17 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
     }
   };
   const [showLocationModal, setShowLocationModal] = useState(false);
+  const [recentlyViewed, setRecentlyViewed] = useState<any[]>([]);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("ji_recently_viewed");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) setRecentlyViewed(parsed.slice(0, 6));
+      }
+    } catch {}
+  }, []);
 
   const updateUrlParams = useCallback(
     (updates: Record<string, string>, useReplace = false) => {
@@ -1309,9 +1320,16 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
                             <BadgeCheck className="w-4 h-4 text-blue-500 shrink-0" />
                           )}
                         </h3>
-                        <p className="text-brand-orange font-black text-base md:text-lg shrink-0">
-                          ₦{Number(ad.price).toLocaleString('en-NG')}
-                        </p>
+                        <div className="text-right shrink-0">
+                          <p className="text-brand-orange font-black text-base md:text-lg">
+                            ₦{Number(ad.price).toLocaleString('en-NG')}
+                          </p>
+                          {Number(ad.previous_price || 0) > Number(ad.price || 0) && (
+                            <p className="text-[10px] text-gray-400 line-through">
+                              ₦{Number(ad.previous_price).toLocaleString('en-NG')}
+                            </p>
+                          )}
+                        </div>
                       </div>
                       <p className="text-xs text-gray-500 line-clamp-2 mt-1 hidden md:block mb-auto">
                         {ad.description}
@@ -1366,6 +1384,61 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
           </div>
         )}
       </div>
+
+      {recentlyViewed.length > 0 && (
+        <div className="mt-8 bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-xs font-black uppercase tracking-wider text-gray-800">
+              Recently Viewed Ads
+            </h3>
+            <button
+              type="button"
+              onClick={() => {
+                localStorage.removeItem("ji_recently_viewed");
+                setRecentlyViewed([]);
+              }}
+              className="text-[11px] font-bold text-gray-400 hover:text-gray-700"
+            >
+              Clear
+            </button>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+            {recentlyViewed.map((rv) => {
+              let thumb = "https://placehold.co/240x180/f8fafc/94a3b8?text=Ad";
+              try {
+                const parsed = JSON.parse(rv.image);
+                const first = Array.isArray(parsed) ? parsed[0] : rv.image;
+                if (first) thumb = first.startsWith("http") ? first : `https://ji-africa-backend.onrender.com${first}`;
+              } catch {
+                if (typeof rv.image === "string" && rv.image) {
+                  thumb = rv.image.startsWith("http") ? rv.image : `https://ji-africa-backend.onrender.com${rv.image}`;
+                }
+              }
+              return (
+                <Link
+                  key={rv.id}
+                  href={`/ad/${rv.id}`}
+                  className="group border border-gray-100 rounded-xl overflow-hidden hover:border-brand-orange transition bg-gray-50/50"
+                >
+                  <div className="h-24 bg-gray-100 overflow-hidden">
+                    <img
+                      src={thumb}
+                      alt={rv.title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition"
+                    />
+                  </div>
+                  <div className="p-2">
+                    <p className="text-[11px] font-bold text-gray-800 truncate">{rv.title}</p>
+                    <p className="text-xs font-black text-brand-orange mt-0.5">
+                      ₦{Number(rv.price || 0).toLocaleString("en-NG")}
+                    </p>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <LocationModal
         isOpen={showLocationModal}
