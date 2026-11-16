@@ -56,6 +56,7 @@ export default function ProfilePage() {
   const [shopAddress, setShopAddress] = useState('');
   const [shopDescription, setShopDescription] = useState('');
   const [jiTrustEnrolled, setJiTrustEnrolled] = useState(false);
+  const [showProfileTrustTerms, setShowProfileTrustTerms] = useState(false);
   const [payoutBankName, setPayoutBankName] = useState('');
   const [payoutAccountNumber, setPayoutAccountNumber] = useState('');
   const [payoutAccountName, setPayoutAccountName] = useState('');
@@ -955,6 +956,48 @@ export default function ProfilePage() {
                 className="px-5 py-2.5 rounded-lg text-sm font-bold bg-brand-orange hover:bg-orange-700 text-white shadow-sm transition"
               >
                 Crop &amp; Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showProfileTrustTerms && (
+        <div className="fixed inset-0 bg-gray-900/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-lg rounded-2xl overflow-hidden shadow-2xl border border-emerald-200 text-gray-900">
+            <div className="p-4 bg-emerald-900 text-white flex items-center justify-between">
+              <h3 className="font-black text-sm">JI Trust Seller Agreement &amp; Terms</h3>
+              <button
+                type="button"
+                onClick={() => setShowProfileTrustTerms(false)}
+                className="text-emerald-200 hover:text-white text-xs font-bold px-2 py-1"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-5 space-y-3 text-xs text-gray-700 leading-relaxed max-h-[70vh] overflow-y-auto">
+              <p><strong>1. Escrow Protection:</strong> Buyer payments for JI Trust adverts are held securely by <strong>ji.africa</strong> until delivery and inspection are completed.</p>
+              <p><strong>2. Dispatch &amp; 72-Hour Inspection Window:</strong> Sellers must dispatch items promptly and mark orders dispatched. Buyers have 72 hours after dispatch to confirm receipt or open a dispute.</p>
+              <p><strong>3. 3% JI Trust Service Fee:</strong> A 3% escrow service fee applies only when an escrow order settles.</p>
+              <p><strong>4. Bank Settlement:</strong> Ensure your Bank Name, 10-digit Account Number, and Account Holder Name match your legal name or registered business name.</p>
+            </div>
+            <div className="p-4 border-t border-gray-100 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setJiTrustEnrolled(true);
+                  setShowProfileTrustTerms(false);
+                }}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black"
+              >
+                Agree &amp; Join JI Trust
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowProfileTrustTerms(false)}
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-bold"
+              >
+                Close
               </button>
             </div>
           </div>

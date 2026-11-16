@@ -602,14 +602,12 @@ function SellerDashboardContent() {
                   <div className="flex flex-wrap items-center gap-2 shrink-0">
                     <button
                       type="button"
-                      onClick={() => {
-                        setBoostAd(ad);
-                        setSelectedTier('TOP');
-                      }}
-                      className="px-3.5 py-2 bg-amber-400 hover:bg-amber-500 text-gray-950 rounded-lg text-xs font-black flex items-center gap-1.5 shadow-sm transition"
+                      disabled
+                      title="VIP Ad Boosting is coming soon"
+                      className="px-3.5 py-2 bg-gray-100 text-gray-400 border border-gray-200 rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-not-allowed select-none"
                     >
                       <Sparkles className="w-3.5 h-3.5" />
-                      {ad.is_vip ? 'Extend VIP' : 'Boost Ad'}
+                      Boost Ad (Coming Soon)
                     </button>
 
                     {ad.status === "Available" && (
@@ -622,6 +620,13 @@ function SellerDashboardContent() {
                         Bump ↑
                       </button>
                     )}
+
+                    <Link
+                      href={`/sell?edit=${ad.id}`}
+                      className="px-3 py-2 bg-brand-orange hover:bg-orange-700 text-white rounded-lg text-xs font-bold transition"
+                    >
+                      Edit Ad
+                    </Link>
 
                     <button
                       type="button"

@@ -406,7 +406,7 @@ function NavbarContent() {
                 </button>
 
                 {notifOpen && user && (
-                  <div className="absolute top-full right-0 mt-2 w-80 z-50 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden text-gray-900">
+                  <div className="fixed left-3 right-3 top-[64px] sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80 z-50 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden text-gray-900">
                     <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
                       <span className="font-bold text-xs text-gray-900">Notifications</span>
                       {unreadCount > 0 && (
@@ -483,7 +483,7 @@ function NavbarContent() {
                     </button>
 
                     {menuOpen && (
-                      <div className="absolute top-full right-0 mt-2 w-56 z-50">
+                      <div className="fixed left-3 right-3 top-[64px] sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-56 z-50">
                         <div className="bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden text-gray-900">
                           <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 relative overflow-hidden">
                             {user.is_verified && (

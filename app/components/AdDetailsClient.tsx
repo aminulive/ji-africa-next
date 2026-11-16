@@ -619,15 +619,22 @@ export default function AdDetailsClient({
               </button>
             </div>
 
-            {ad.ji_trust_enabled && !isUnavailable && !(currentUser && Number(currentUser.id || currentUser.userId || 0) > 0 && Number(currentUser.id || currentUser.userId) === Number(ad.user_id || ad.seller_id || ad.user?.id || 0)) && (
+            {ad.ji_trust_enabled && !isUnavailable && (
               <div className="pt-1 flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowTrustModal(true)}
-                  className="flex-1 py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-black shadow-xs flex items-center justify-center gap-1.5"
-                >
-                  <ShieldCheck className="w-4 h-4 shrink-0" /> Buy Safely with JI Trust
-                </button>
+                {currentUser && Number(currentUser.id || currentUser.userId || 0) > 0 && Number(currentUser.id || currentUser.userId) === Number(ad.user_id || ad.seller_id || ad.user?.id || 0) ? (
+                  <div className="flex-1 py-2 px-3 bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-lg text-[11px] font-bold flex items-center gap-1.5">
+                    <ShieldCheck className="w-4 h-4 text-emerald-700 shrink-0" />
+                    <span>JI Trust Escrow Active on Your Ad</span>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setShowTrustModal(true)}
+                    className="flex-1 py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-black shadow-xs flex items-center justify-center gap-1.5"
+                  >
+                    <ShieldCheck className="w-4 h-4 shrink-0" /> Buy Safely with JI Trust
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => setShowTrustInfoModal(true)}
@@ -688,21 +695,24 @@ export default function AdDetailsClient({
               )}
             </div>
 
-            {/* Structured Specification Cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6 pt-4 border-t border-gray-100">
-              {specItems.map((spec) => (
-                <div
-                  key={spec.label}
-                  className="bg-gray-50 dark:bg-gray-800/70 border border-gray-100 dark:border-gray-700/80 rounded-lg p-3"
-                >
-                  <p className="text-[10px] text-gray-500 uppercase font-bold tracking-wide">
-                    {spec.label}
-                  </p>
-                  <p className="text-xs sm:text-sm font-bold text-gray-900 dark:text-gray-100 mt-0.5 truncate">
-                    {spec.value}
-                  </p>
-                </div>
-              ))}
+            {/* Bordered Specification Table (Brand-Styled for Light & Dark Mode) */}
+            <div className="mb-6 pt-4 border-t border-gray-100">
+              <div className="border border-orange-200/80 dark:border-gray-700 rounded-xl overflow-hidden">
+                <table className="w-full text-left border-collapse">
+                  <tbody className="divide-y divide-orange-100/80 dark:divide-gray-700">
+                    {specItems.map((spec) => (
+                      <tr key={spec.label} className="hover:bg-orange-50/30 dark:hover:bg-gray-800/40 transition">
+                        <th className="w-2/5 py-2.5 px-3.5 text-[11px] uppercase tracking-wider font-extrabold text-brand-orange bg-orange-50/50 dark:bg-gray-900/50 border-r border-orange-100/80 dark:border-gray-700">
+                          {spec.label}
+                        </th>
+                        <td className="py-2.5 px-3.5 text-xs sm:text-sm font-bold text-gray-900 dark:text-gray-100">
+                          {spec.value}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
 
             <div className="border-t border-gray-100 pt-5">
@@ -908,7 +918,11 @@ export default function AdDetailsClient({
               </button>
                 {ad.ji_trust_enabled && !isUnavailable && (
                   <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 space-y-2">
-                    {!(currentUser && Number(currentUser.id || currentUser.userId || 0) > 0 && Number(currentUser.id || currentUser.userId) === Number(ad.user_id || ad.seller_id || ad.user?.id || 0)) && (
+                    {currentUser && Number(currentUser.id || currentUser.userId || 0) > 0 && Number(currentUser.id || currentUser.userId) === Number(ad.user_id || ad.seller_id || ad.user?.id || 0) ? (
+                      <div className="w-full py-2.5 px-3 bg-emerald-600 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5">
+                        <ShieldCheck className="w-4 h-4" /> JI Trust Escrow Enabled on Your Ad
+                      </div>
+                    ) : (
                       <button
                         type="button"
                         onClick={() => setShowTrustModal(true)}
