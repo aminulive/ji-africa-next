@@ -69,7 +69,11 @@ export default function AdminDashboardPage() {
 
   // Users & KYC State
   const [users, setUsers] = useState<any[]>([]);
-  const [userSearch, setUserSearch] = useState('');
+  const [userSearch, setUserSearch] = useState("");
+  const [kycFilter, setKycFilter] = useState<"all" | "pending" | "verified">("all");
+  const [reviewUser, setReviewUser] = useState<any>(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [reviewActionLoading, setReviewActionLoading] = useState(false);
 
   // 4-Level Categories Governance State
   const [categories, setCategories] = useState<any[]>([]);
@@ -339,6 +343,32 @@ export default function AdminDashboardPage() {
         loadAdminData();
       }
     } catch {}
+  };
+
+  const resolveDocUrl = (url: string | null | undefined) => {
+    if (!url) return "";
+    return url.startsWith("http") ? url : `https://ji-africa-backend.onrender.com${url}`;
+  };
+
+  const handleKycDecision = async (user: any, decision: "verified" | "rejected") => {
+    setReviewActionLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/admin/users/${user.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({
+          kyc_status: decision,
+          kyc_rejection_reason: decision === "rejected" ? (rejectReason.trim() || "Document unclear or invalid") : null,
+        }),
+      });
+      if (res.ok) {
+        notify(decision === "verified" ? `${user.full_name} KYC approved & verified!` : `${user.full_name} KYC rejected`);
+        setReviewUser(null);
+        setRejectReason("");
+        loadAdminData();
+      }
+    } catch {}
+    setReviewActionLoading(false);
   };
 
   const handleRoleChange = async (userId: number, role: string) => {
@@ -732,19 +762,42 @@ export default function AdminDashboardPage() {
       )}
 
       {/* TAB 2: USERS & SELLER KYC */}
-      {activeTab === 'users' && (
+      {activeTab === "users" && (
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="p-5 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <h2 className="font-bold text-gray-900 text-base">Seller Accounts &amp; KYC Badges</h2>
-            <div className="relative w-full sm:w-72">
-              <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
-              <input
-                type="text"
-                value={userSearch}
-                onChange={(e) => setUserSearch(e.target.value)}
-                placeholder="Search name, email, or shop..."
-                className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-orange"
-              />
+          <div className="p-5 border-b border-gray-100 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+            <div>
+              <h2 className="font-bold text-gray-900 text-base">Seller Accounts &amp; KYC Verification Queue</h2>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Inspect submitted ID/CAC documents and grant or revoke the blue Verified Seller badge.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
+                {(["all", "pending", "verified"] as const).map((kf) => (
+                  <button
+                    key={kf}
+                    type="button"
+                    onClick={() => setKycFilter(kf)}
+                    className={`px-2.5 py-1 rounded-md text-xs font-bold capitalize transition ${
+                      kycFilter === kf ? "bg-white text-gray-900 shadow-sm" : "text-gray-600 hover:text-gray-900"
+                    }`}
+                  >
+                    {kf === "pending"
+                      ? `Pending KYC (${users.filter((u) => u.kyc_status === "pending").length})`
+                      : kf}
+                  </button>
+                ))}
+              </div>
+              <div className="relative w-full sm:w-64">
+                <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
+                <input
+                  type="text"
+                  value={userSearch}
+                  onChange={(e) => setUserSearch(e.target.value)}
+                  placeholder="Search name, email, or shop..."
+                  className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-orange"
+                />
+              </div>
             </div>
           </div>
 
@@ -756,67 +809,176 @@ export default function AdminDashboardPage() {
                   <th className="py-3 px-4">Contact</th>
                   <th className="py-3 px-4">Ads</th>
                   <th className="py-3 px-4">Role</th>
-                  <th className="py-3 px-4">KYC Status</th>
+                  <th className="py-3 px-4">KYC Status &amp; Document</th>
                   <th className="py-3 px-4 text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 text-xs">
-                {users.map((u) => (
-                  <tr key={u.id} className="hover:bg-gray-50">
-                    <td className="py-3.5 px-4">
-                      <div className="font-bold text-gray-900 flex items-center gap-1.5">
-                        {u.shop_name || u.full_name}
-                        {u.is_verified && <BadgeCheck className="w-4 h-4 text-blue-500" />}
-                      </div>
-                      <div className="text-[11px] text-gray-500">
-                        {u.full_name} {u.username ? `(@${u.username})` : ''}
-                      </div>
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <div className="text-gray-800">{u.email}</div>
-                      <div className="text-[11px] text-gray-500">{u.phone}</div>
-                    </td>
-                    <td className="py-3.5 px-4 font-bold text-gray-700">{u._count?.ads || 0}</td>
-                    <td className="py-3.5 px-4">
-                      <select
-                        value={u.role}
-                        onChange={(e) => handleRoleChange(u.id, e.target.value)}
-                        className="px-2.5 py-1 border border-gray-200 rounded-md text-xs font-semibold bg-white"
-                      >
-                        <option value="user">user</option>
-                        <option value="admin">admin</option>
-                        <option value="super_admin">super_admin</option>
-                      </select>
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <span
-                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${
-                          u.is_verified
-                            ? 'bg-blue-100 text-blue-700'
-                            : 'bg-gray-100 text-gray-600'
-                        }`}
-                      >
-                        {u.is_verified ? 'Verified' : 'Unverified'}
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-4 text-right">
-                      <button
-                        type="button"
-                        onClick={() => handleToggleVerifyUser(u)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
-                          u.is_verified
-                            ? 'bg-gray-200 hover:bg-gray-300 text-gray-800'
-                            : 'bg-blue-600 hover:bg-blue-700 text-white'
-                        }`}
-                      >
-                        {u.is_verified ? 'Revoke Badge' : 'Verify Seller'}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {users
+                  .filter((u) => {
+                    if (kycFilter === "pending") return u.kyc_status === "pending";
+                    if (kycFilter === "verified") return Boolean(u.is_verified);
+                    return true;
+                  })
+                  .map((u) => {
+                    const docHref = resolveDocUrl(u.kyc_doc_url);
+                    return (
+                      <tr key={u.id} className="hover:bg-gray-50">
+                        <td className="py-3.5 px-4">
+                          <div className="font-bold text-gray-900 flex items-center gap-1.5">
+                            {u.shop_name || u.full_name}
+                            {u.is_verified && <BadgeCheck className="w-4 h-4 text-blue-500" />}
+                          </div>
+                          <div className="text-[11px] text-gray-500">
+                            {u.full_name} {u.username ? `(@${u.username})` : ""}
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <div className="text-gray-800">{u.email}</div>
+                          <div className="text-[11px] text-gray-500">{u.phone}</div>
+                        </td>
+                        <td className="py-3.5 px-4 font-bold text-gray-700">{u._count?.ads || 0}</td>
+                        <td className="py-3.5 px-4">
+                          <select
+                            value={u.role}
+                            onChange={(e) => handleRoleChange(u.id, e.target.value)}
+                            className="px-2.5 py-1 border border-gray-200 rounded-md text-xs font-semibold bg-white"
+                          >
+                            <option value="user">user</option>
+                            <option value="admin">admin</option>
+                            <option value="super_admin">super_admin</option>
+                          </select>
+                        </td>
+                        <td className="py-3.5 px-4 space-y-1">
+                          <div>
+                            <span
+                              className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                                u.is_verified || u.kyc_status === "verified"
+                                  ? "bg-blue-100 text-blue-700"
+                                  : u.kyc_status === "pending"
+                                  ? "bg-amber-100 text-amber-800"
+                                  : u.kyc_status === "rejected"
+                                  ? "bg-red-100 text-red-700"
+                                  : "bg-gray-100 text-gray-600"
+                              }`}
+                            >
+                              {u.is_verified ? "Verified" : u.kyc_status || "Unverified"}
+                            </span>
+                          </div>
+                          {u.kyc_doc_type && (
+                            <div className="text-[11px] text-gray-500">
+                              {u.kyc_doc_type} {u.kyc_doc_number ? `• ${u.kyc_doc_number}` : ""}
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-3.5 px-4 text-right space-x-2">
+                          {docHref && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setReviewUser({ ...u, kyc_doc_url: docHref });
+                                setRejectReason(u.kyc_rejection_reason || "");
+                              }}
+                              className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold transition"
+                            >
+                              Review Doc
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleToggleVerifyUser(u)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                              u.is_verified
+                                ? "bg-gray-200 hover:bg-gray-300 text-gray-800"
+                                : "bg-blue-600 hover:bg-blue-700 text-white"
+                            }`}
+                          >
+                            {u.is_verified ? "Revoke Badge" : "Verify Seller"}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
               </tbody>
             </table>
           </div>
+
+          {reviewUser && (
+            <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+              <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-2xl">
+                <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                  <div>
+                    <h3 className="font-black text-gray-900 text-base">
+                      KYC Review: {reviewUser.shop_name || reviewUser.full_name}
+                    </h3>
+                    <p className="text-xs text-gray-500">
+                      {reviewUser.kyc_doc_type} {reviewUser.kyc_doc_number ? `• ${reviewUser.kyc_doc_number}` : ""}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setReviewUser(null)}
+                    className="text-xs font-bold text-gray-500 hover:text-gray-800"
+                  >
+                    Close
+                  </button>
+                </div>
+
+                <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 flex flex-col items-center">
+                  {String(reviewUser.kyc_doc_url).toLowerCase().endsWith(".pdf") ? (
+                    <a
+                      href={reviewUser.kyc_doc_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-4 py-2.5 bg-gray-900 text-white rounded-lg text-xs font-bold"
+                    >
+                      Open Uploaded PDF Document
+                    </a>
+                  ) : (
+                    <a href={reviewUser.kyc_doc_url} target="_blank" rel="noopener noreferrer">
+                      <img
+                        src={reviewUser.kyc_doc_url}
+                        alt="KYC Document"
+                        className="max-h-72 rounded-lg object-contain border border-gray-200"
+                      />
+                    </a>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1">
+                    Rejection Reason (Required only if rejecting)
+                  </label>
+                  <input
+                    type="text"
+                    value={rejectReason}
+                    onChange={(e) => setRejectReason(e.target.value)}
+                    placeholder="e.g. Photo is blurry, name does not match shop profile..."
+                    className="w-full px-3.5 py-2 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-orange"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    disabled={reviewActionLoading}
+                    onClick={() => handleKycDecision(reviewUser, "rejected")}
+                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold disabled:opacity-60"
+                  >
+                    Reject Document
+                  </button>
+                  <button
+                    type="button"
+                    disabled={reviewActionLoading}
+                    onClick={() => handleKycDecision(reviewUser, "verified")}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold disabled:opacity-60"
+                  >
+                    Approve &amp; Grant Verified Badge
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
