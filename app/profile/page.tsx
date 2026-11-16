@@ -55,6 +55,9 @@ export default function ProfilePage() {
   const [phone, setPhone] = useState('');
   const [shopAddress, setShopAddress] = useState('');
   const [shopDescription, setShopDescription] = useState('');
+  const [payoutBankName, setPayoutBankName] = useState('');
+  const [payoutAccountNumber, setPayoutAccountNumber] = useState('');
+  const [payoutAccountName, setPayoutAccountName] = useState('');
   const [socials, setSocials] = useState({
     facebook: '',
     twitter: '',
@@ -108,6 +111,9 @@ export default function ProfilePage() {
       setPhone(u.phone || '');
       setShopAddress(u.shop_address || '');
       setShopDescription(u.shop_description || '');
+      setPayoutBankName(u.payout_bank_name || '');
+      setPayoutAccountNumber(u.payout_account_number || '');
+      setPayoutAccountName(u.payout_account_name || '');
       setSocials({
         facebook: u.facebook || '',
         twitter: u.twitter || '',
@@ -295,6 +301,9 @@ export default function ProfilePage() {
     formData.append('phone', phone);
     formData.append('shop_address', shopAddress);
     formData.append('shop_description', shopDescription);
+    formData.append('payout_bank_name', payoutBankName);
+    formData.append('payout_account_number', payoutAccountNumber);
+    formData.append('payout_account_name', payoutAccountName);
 
     formData.append('facebook', socials.facebook);
     formData.append('twitter', socials.twitter);
@@ -713,6 +722,52 @@ export default function ProfilePage() {
               placeholder="Tell buyers what you sell..."
               className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm outline-none focus:border-brand-orange"
             ></textarea>
+          </div>
+        </div>
+
+        <h3 className="font-bold text-gray-900 border-b border-gray-100 pb-2 pt-4">
+          JI Trust Escrow Payout Bank Account
+        </h3>
+        <p className="text-xs text-gray-500 -mt-3">
+          Where ji.africa settles your funds after a buyer confirms receipt or the 72-hour JI Trust inspection period elapses.
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1.5">
+              Bank Name
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. GTBank, Access, Zenith, OPay"
+              value={payoutBankName}
+              onChange={(e) => setPayoutBankName(e.target.value)}
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm outline-none focus:border-brand-orange"
+            />
+          </div>
+          <div>
+            <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1.5">
+              Account Number (10 Digits)
+            </label>
+            <input
+              type="text"
+              maxLength={10}
+              placeholder="0123456789"
+              value={payoutAccountNumber}
+              onChange={(e) => setPayoutAccountNumber(e.target.value.replace(/\D/g, ''))}
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm outline-none focus:border-brand-orange"
+            />
+          </div>
+          <div>
+            <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1.5">
+              Account Name
+            </label>
+            <input
+              type="text"
+              placeholder="Exact account holder name"
+              value={payoutAccountName}
+              onChange={(e) => setPayoutAccountName(e.target.value)}
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm outline-none focus:border-brand-orange"
+            />
           </div>
         </div>
 

@@ -81,6 +81,7 @@ function SellFormContent() {
   const [price, setPrice] = useState('');
   const [isNegotiable, setIsNegotiable] = useState('false');
   const [vipPlan, setVipPlan] = useState('');
+  const [jiTrustEnabled, setJiTrustEnabled] = useState(false);
 
   // Images State
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -213,6 +214,7 @@ function SellFormContent() {
             setPrice(String(adData.price || ''));
             setIsNegotiable(adData.is_negotiable ? 'true' : 'false');
             setVipPlan(adData.is_vip ? adData.vip_type || 'top' : '');
+            setJiTrustEnabled(Boolean(adData.ji_trust_enabled));
 
             if (adData.image) {
               try {
@@ -374,6 +376,7 @@ function SellFormContent() {
     formData.append('youtube_link', externalLink);
     formData.append('status', status);
     formData.append('is_negotiable', isNegotiable);
+    formData.append('ji_trust_enabled', jiTrustEnabled ? 'true' : 'false');
 
     formData.append('country_id', '1');
     formData.append('region_id', String(parseInt(regionId, 10)));
@@ -779,6 +782,35 @@ function SellFormContent() {
               </label>
             </div>
           </div>
+        </div>
+
+        {/* Card 3B: JI Trust Escrow Protection Opt-In */}
+        <div className="bg-white rounded-xl border border-emerald-200 p-6 shadow-sm space-y-3">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <span className="inline-block text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 mb-1">
+                Recommended • Escrow Protection
+              </span>
+              <h3 className="font-bold text-gray-900 text-base">Enable JI Trust Escrow Protection</h3>
+              <p className="text-xs text-gray-600 mt-1 leading-relaxed">
+                Buyers pay into <strong>ji.africa</strong> escrow before you ship or deliver. Funds are released to your bank account once the buyer confirms receipt—or automatically after <strong>72 hours</strong> without dispute (3% JI Trust service fee applies only on completed escrow sales).
+              </p>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-1">
+              <input
+                type="checkbox"
+                checked={jiTrustEnabled}
+                onChange={(e) => setJiTrustEnabled(e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+            </label>
+          </div>
+          {jiTrustEnabled && (
+            <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-3 text-[11px] text-emerald-900 font-medium">
+              ✓ Your listing will display the <strong>JI Trust Protected</strong> badge. Make sure your payout bank details are saved in your Profile.
+            </div>
+          )}
         </div>
 
         {/* Card 4: Promote your ad (Free Mode Active) */}

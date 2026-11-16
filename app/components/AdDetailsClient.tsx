@@ -73,6 +73,11 @@ export default function AdDetailsClient({
   const [offerPhone, setOfferPhone] = useState("");
   const [offerNote, setOfferNote] = useState("");
   const [submittingOffer, setSubmittingOffer] = useState(false);
+  const [showTrustModal, setShowTrustModal] = useState(false);
+  const [trustBuyerName, setTrustBuyerName] = useState("");
+  const [trustBuyerPhone, setTrustBuyerPhone] = useState("");
+  const [trustAddress, setTrustAddress] = useState("");
+  const [startingTrust, setStartingTrust] = useState(false);
 
   // Request Callback Modal State
   const [showCallbackModal, setShowCallbackModal] = useState(false);
@@ -354,6 +359,46 @@ export default function AdDetailsClient({
       notify("Network error sending offer");
     } finally {
       setSubmittingOffer(false);
+    }
+  };
+
+  const handleStartJiTrustCheckout = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const token = localStorage.getItem("ji_token");
+    if (!token || !currentUser) {
+      notify("Please log in to use JI Trust Escrow Protection");
+      router.push("/login");
+      return;
+    }
+    if (!trustBuyerName.trim() || !trustBuyerPhone.trim()) {
+      notify("Please enter your name and phone number");
+      return;
+    }
+    setStartingTrust(true);
+    try {
+      const res = await fetch(`${API_URL}/payments/trust/initialize`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          ad_id: ad.id,
+          buyer_name: trustBuyerName.trim(),
+          buyer_phone: trustBuyerPhone.trim(),
+          delivery_address: trustAddress.trim(),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.authorization_url) {
+        window.location.href = data.authorization_url;
+      } else {
+        notify(data.error || "Could not initialize JI Trust checkout");
+        setStartingTrust(false);
+      }
+    } catch {
+      notify("Network error initializing JI Trust");
+      setStartingTrust(false);
     }
   };
 
@@ -840,6 +885,16 @@ export default function AdDetailsClient({
               >
                 <PhoneCall className="w-4 h-4 text-brand-orange" /> Request Seller Callback
               </button>
+                {ad.ji_trust_enabled && ad.status !== "Sold" && !(currentUser && Number(currentUser.id || currentUser.userId || 0) > 0 && Number(currentUser.id || currentUser.userId) === Number(ad.user_id || ad.seller_id || ad.user?.id || 0)) && (
+                  <button
+                    type="button"
+                    onClick={() => setShowTrustModal(true)}
+                    className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-sm transition flex items-center justify-center gap-1.5"
+                  >
+                    🛡️ Buy Safely with JI Trust (Escrow)
+                  </button>
+                )}
+
                 {ad.status === "Sold" ? (
                   <div className="w-full py-2.5 bg-gray-200 text-gray-700 rounded-xl text-xs font-black text-center uppercase tracking-wider">
                     Item Marked as Sold
@@ -1185,6 +1240,82 @@ export default function AdDetailsClient({
                 className="w-full py-3 bg-brand-orange hover:bg-orange-700 text-white rounded-xl text-xs font-black shadow-md disabled:opacity-60"
               >
                 {submittingOffer ? "Sending Offer..." : "Send Offer to Seller"}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showTrustModal && (
+        <div className="fixed inset-0 bg-gray-900/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-md rounded-2xl overflow-hidden shadow-2xl border border-gray-200">
+            <div className="p-4 bg-emerald-900 text-white flex items-center justify-between">
+              <div>
+                <h3 className="font-black text-sm">🛡️ JI Trust Escrow Protection</h3>
+                <p className="text-[11px] text-emerald-200 truncate max-w-xs">{ad.title}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowTrustModal(false)}
+                className="text-emerald-200 hover:text-white text-xs font-bold px-2 py-1"
+              >
+                ✕
+              </button>
+            </div>
+            <form onSubmit={handleStartJiTrustCheckout} className="p-5 space-y-4">
+              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3.5 space-y-1.5 text-xs text-emerald-950">
+                <div className="flex justify-between font-black text-sm">
+                  <span>Escrow Amount</span>
+                  <span className="text-emerald-700">₦{Number(ad.price || 0).toLocaleString("en-NG")}</span>
+                </div>
+                <p className="text-[11px] text-emerald-800 leading-relaxed">
+                  1. Your money is held safely by <strong>ji.africa</strong>—not sent to the seller yet.<br />
+                  2. Seller ships/delivers upon escrow confirmation.<br />
+                  3. You have <strong>72 hours</strong> after dispatch to inspect &amp; confirm receipt before payout.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-600 mb-1">Your Full Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={trustBuyerName}
+                    onChange={(e) => setTrustBuyerName(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs outline-none focus:border-emerald-600"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-600 mb-1">Phone / WhatsApp</label>
+                  <input
+                    type="tel"
+                    required
+                    value={trustBuyerPhone}
+                    onChange={(e) => setTrustBuyerPhone(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs outline-none focus:border-emerald-600"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-gray-600 mb-1">Delivery Address / Meetup Location</label>
+                <input
+                  type="text"
+                  required
+                  value={trustAddress}
+                  onChange={(e) => setTrustAddress(e.target.value)}
+                  placeholder="e.g. Wuse 2, Abuja or Park Waybill"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs outline-none focus:border-emerald-600"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={startingTrust}
+                className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-md disabled:opacity-60"
+              >
+                {startingTrust ? "Securing Escrow..." : "Proceed to Fund JI Trust"}
               </button>
             </form>
           </div>

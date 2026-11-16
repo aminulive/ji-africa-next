@@ -1319,6 +1319,11 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
                           {ad.seller_verified && (
                             <BadgeCheck className="w-4 h-4 text-blue-500 shrink-0" />
                           )}
+                          {ad.ji_trust_enabled && (
+                            <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[9px] font-black uppercase px-1.5 py-0.5 rounded shrink-0">
+                              JI TRUST
+                            </span>
+                          )}
                         </h3>
                         <div className="text-right shrink-0">
                           <p className="text-brand-orange font-black text-base md:text-lg">

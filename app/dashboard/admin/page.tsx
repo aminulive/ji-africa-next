@@ -46,8 +46,9 @@ function getAdThumb(ad: any) {
 export default function AdminDashboardPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<
-    'moderation' | 'users' | 'reviews' | 'categories' | 'blog' | 'messages'
+    'moderation' | 'users' | 'trust' | 'reviews' | 'categories' | 'blog' | 'messages'
   >('moderation');
+  const [trustOrders, setTrustOrders] = useState<any[]>([]);
   const [adminReviews, setAdminReviews] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState('');
@@ -140,7 +141,7 @@ export default function AdminDashboardPage() {
 
     try {
       const headers = getAuthHeaders();
-      const [statsRes, adsRes, usersRes, catsRes, blogRes, msgRes, revRes] = await Promise.all([
+      const [statsRes, adsRes, usersRes, catsRes, blogRes, msgRes, revRes, trustRes] = await Promise.all([
         fetch(`${API_URL}/admin/stats`, { headers }),
         fetch(`${API_URL}/admin/ads?status=${adFilter}`, { headers }),
         fetch(`${API_URL}/admin/users?search=${encodeURIComponent(userSearch)}`, { headers }),
@@ -148,6 +149,7 @@ export default function AdminDashboardPage() {
         fetch(`${API_URL}/admin/blog`, { headers }),
         fetch(`${API_URL}/admin/messages`, { headers }),
         fetch(`${API_URL}/admin/reviews`, { headers }),
+        fetch(`${API_URL}/admin/trust`, { headers }),
       ]);
 
       if (statsRes.ok) setStats(await statsRes.json());
@@ -161,6 +163,10 @@ export default function AdminDashboardPage() {
       if (blogRes.ok) setPosts(await blogRes.json());
       if (msgRes.ok) setMessages(await msgRes.json());
       if (revRes?.ok) setAdminReviews(await revRes.json());
+      if (trustRes?.ok) {
+        const tJson = await trustRes.json();
+        setTrustOrders(tJson.orders || []);
+      }
     } catch (err) {
       console.error('Admin load error:', err);
     } finally {
@@ -401,6 +407,21 @@ export default function AdminDashboardPage() {
     } catch {}
   };
 
+  const handleResolveTrust = async (orderId: number, action: "release_to_seller" | "mark_paid_out" | "refund_buyer") => {
+    try {
+      const res = await fetch(`${API_URL}/admin/trust/${orderId}/resolve`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({ action }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        notify(data.message || "Escrow updated");
+        loadAdminData();
+      }
+    } catch {}
+  };
+
   const handleRoleChange = async (userId: number, role: string) => {
     try {
       const res = await fetch(`${API_URL}/admin/users/${userId}`, {
@@ -626,6 +647,17 @@ export default function AdminDashboardPage() {
           }`}
         >
           <ShieldCheck className="w-4 h-4" /> Reviews ({adminReviews.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('trust')}
+          className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 transition ${
+            activeTab === 'trust'
+              ? 'bg-emerald-700 text-white'
+              : 'text-emerald-800 bg-emerald-50 hover:bg-emerald-100'
+          }`}
+        >
+          <ShieldCheck className="w-4 h-4" /> JI Trust ({trustOrders.length})
         </button>
         <button
           type="button"
@@ -1019,6 +1051,92 @@ export default function AdminDashboardPage() {
                 </div>
               </div>
             </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB 2A: JI TRUST ESCROW LEDGER & MEDIATION */}
+      {activeTab === 'trust' && (
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm divide-y divide-gray-100">
+          <div className="p-5 border-b border-gray-100">
+            <h2 className="font-bold text-gray-900 text-base">🛡️ JI Trust Escrow Ledger &amp; Dispute Mediation</h2>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Track held escrow funds, 3% commission revenue, seller bank payout details, and disputed orders.
+            </p>
+          </div>
+          {trustOrders.length === 0 ? (
+            <div className="p-10 text-center text-xs text-gray-500">No JI Trust escrow transactions yet.</div>
+          ) : (
+            trustOrders.map((ord) => (
+              <div key={ord.id} className="p-5 flex flex-col lg:flex-row justify-between gap-4">
+                <div className="space-y-1 text-xs">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-mono font-bold text-gray-700">{ord.reference}</span>
+                    <span
+                      className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
+                        ord.status === "disputed"
+                          ? "bg-red-100 text-red-700"
+                          : ord.status === "released" || ord.status === "paid_out"
+                          ? "bg-emerald-100 text-emerald-800"
+                          : "bg-amber-100 text-amber-800"
+                      }`}
+                    >
+                      {ord.status}
+                    </span>
+                  </div>
+                  <p className="text-gray-800">
+                    Item: <strong>{ord.ad_title || `Ad #${ord.ad_id}`}</strong> • Gross:{" "}
+                    <strong>₦{Number(ord.item_amount).toLocaleString("en-NG")}</strong> • Fee (3%):{" "}
+                    <strong className="text-brand-orange">₦{Number(ord.commission_amount).toLocaleString("en-NG")}</strong> • Seller Payout:{" "}
+                    <strong className="text-emerald-700">₦{Number(ord.seller_payout_amount).toLocaleString("en-NG")}</strong>
+                  </p>
+                  <p className="text-gray-600">
+                    Seller: <strong>{ord.seller_shop_name || ord.seller_name}</strong> | Bank:{" "}
+                    <strong>
+                      {ord.payout_bank_name
+                        ? `${ord.payout_bank_name} — ${ord.payout_account_number} (${ord.payout_account_name})`
+                        : "Not configured yet"}
+                    </strong>
+                  </p>
+                  <p className="text-gray-600">
+                    Buyer: <strong>{ord.buyer_name}</strong> ({ord.buyer_phone})
+                  </p>
+                  {ord.dispute_reason && (
+                    <p className="text-red-600 font-bold">Dispute: {ord.dispute_reason}</p>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap items-start gap-2 shrink-0">
+                  {ord.status === "disputed" && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => handleResolveTrust(ord.id, "release_to_seller")}
+                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold"
+                      >
+                        Release to Seller
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleResolveTrust(ord.id, "refund_buyer")}
+                        className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold"
+                      >
+                        Refund Buyer
+                      </button>
+                    </>
+                  )}
+                  {ord.status === "released" && (
+                    <button
+                      type="button"
+                      onClick={() => handleResolveTrust(ord.id, "mark_paid_out")}
+                      className="px-3.5 py-1.5 bg-gray-900 hover:bg-gray-800 text-white rounded-lg text-xs font-bold"
+                    >
+                      Mark Bank Payout Sent
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))
           )}
         </div>
       )}

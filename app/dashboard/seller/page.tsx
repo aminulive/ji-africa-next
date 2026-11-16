@@ -77,7 +77,10 @@ function SellerDashboardContent() {
 
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'listings' | 'offers' | 'callbacks' | 'payments'>('listings');
+  const [activeTab, setActiveTab] = useState<'listings' | 'trust' | 'offers' | 'callbacks' | 'payments'>('listings');
+  const [trustOrders, setTrustOrders] = useState<any[]>([]);
+  const [waybillInputs, setWaybillInputs] = useState<Record<number, string>>({});
+  const [disputeReasons, setDisputeReasons] = useState<Record<number, string>>({});
   const [offers, setOffers] = useState<any[]>([]);
   const [priceEditAd, setPriceEditAd] = useState<any>(null);
   const [newPriceInput, setNewPriceInput] = useState("");
@@ -119,9 +122,10 @@ function SellerDashboardContent() {
     }
 
     try {
-      const [res, offersRes] = await Promise.all([
+      const [res, offersRes, trustRes] = await Promise.all([
         fetch(`${API_URL}/dashboard/seller`, { headers: getAuthHeaders() }),
         fetch(`${API_URL}/dashboard/offers`, { headers: getAuthHeaders() }),
+        fetch(`${API_URL}/payments/trust/orders`, { headers: getAuthHeaders() }),
       ]);
       if (res.ok) {
         const data = await res.json();
@@ -133,6 +137,10 @@ function SellerDashboardContent() {
         const oData = await offersRes.json();
         setOffers(oData.offers || []);
       }
+      if (trustRes?.ok) {
+        const tData = await trustRes.json();
+        setTrustOrders(tData.orders || []);
+      }
     } catch (err) {
       console.error('Seller dashboard error:', err);
     } finally {
@@ -142,6 +150,25 @@ function SellerDashboardContent() {
 
   // Verify returning Paystack / NowPayments redirect
   useEffect(() => {
+    const trustRef = searchParams?.get('trust_ref');
+    const trustDemo = searchParams?.get('demo') === '1' ? '?demo=1' : '';
+    const savedTok = typeof window !== 'undefined' ? localStorage.getItem('ji_token') : null;
+    if (trustRef && savedTok) {
+      fetch(`${API_URL}/payments/trust/verify/${encodeURIComponent(trustRef)}${trustDemo}`, {
+        headers: { Authorization: `Bearer ${savedTok}` },
+      })
+        .then((r) => r.json())
+        .then((d) => {
+          if (d?.status === 'funded') {
+            notify(d.message || 'JI Trust Escrow Funded!');
+            setActiveTab('trust');
+            loadDashboard();
+            router.replace('/dashboard/seller');
+          }
+        })
+        .catch(() => {});
+    }
+
     const ref = searchParams?.get('payment_ref');
     const provider = searchParams?.get('provider') || 'paystack';
     const demo = searchParams?.get('demo') === '1' ? '?demo=1' : '';
@@ -239,6 +266,61 @@ function SellerDashboardContent() {
           );
           window.open(`https://wa.me/${cleanPhone}?text=${msg}`, "_blank");
         }
+      }
+    } catch {}
+  };
+
+  const handleTrustDispatch = async (orderId: number) => {
+    try {
+      const res = await fetch(`${API_URL}/payments/trust/orders/${orderId}/dispatch`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({ waybill_info: waybillInputs[orderId] || "" }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        notify(data.message || "Marked dispatched!");
+        loadDashboard();
+      } else {
+        notify(data.error || "Could not update order");
+      }
+    } catch {}
+  };
+
+  const handleTrustConfirm = async (orderId: number) => {
+    try {
+      const res = await fetch(`${API_URL}/payments/trust/orders/${orderId}/confirm`, {
+        method: "PUT",
+        headers: getAuthHeaders(),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        notify(data.message || "Receipt confirmed!");
+        loadDashboard();
+      } else {
+        notify(data.error || "Could not confirm receipt");
+      }
+    } catch {}
+  };
+
+  const handleTrustDispute = async (orderId: number) => {
+    const reason = (disputeReasons[orderId] || "").trim();
+    if (!reason) {
+      notify("Enter your dispute reason first");
+      return;
+    }
+    try {
+      const res = await fetch(`${API_URL}/payments/trust/orders/${orderId}/dispute`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify({ reason }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        notify(data.message || "Dispute submitted");
+        loadDashboard();
+      } else {
+        notify(data.error || "Could not open dispute");
       }
     } catch {}
   };
@@ -393,6 +475,15 @@ function SellerDashboardContent() {
           }`}
         >
           <Package className="w-4 h-4" /> My Listings ({ads.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('trust')}
+          className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 transition ${
+            activeTab === 'trust' ? 'bg-emerald-700 text-white' : 'text-emerald-800 bg-emerald-50 hover:bg-emerald-100'
+          }`}
+        >
+          <ShieldCheck className="w-4 h-4" /> JI Trust Escrow ({trustOrders.length})
         </button>
         <button
           type="button"
@@ -570,6 +661,143 @@ function SellerDashboardContent() {
                 </div>
               ))}
             </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB 1A: JI TRUST ESCROW ORDERS */}
+      {activeTab === 'trust' && (
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm divide-y divide-gray-100">
+          <div className="p-5 border-b border-gray-100 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 className="font-bold text-gray-900 text-base">🛡️ JI Trust Protected Orders</h2>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Escrow funds release automatically 72 hours after seller dispatch unless disputed (3% JI Trust fee).
+              </p>
+            </div>
+            <Link href="/profile" className="text-xs font-bold text-emerald-700 hover:underline">
+              Configure Payout Bank →
+            </Link>
+          </div>
+          {trustOrders.length === 0 ? (
+            <div className="p-10 text-center text-xs text-gray-500">
+              No JI Trust escrow orders yet. Enable JI Trust when posting or editing an advert.
+            </div>
+          ) : (
+            trustOrders.map((ord) => {
+              const myId = Number(user?.id || user?.userId || 0);
+              const isSeller = Number(ord.seller_id) === myId;
+              const isBuyer = Number(ord.buyer_id) === myId;
+              return (
+                <div key={ord.id} className="p-5 space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-mono text-xs font-bold text-gray-600">{ord.reference}</span>
+                      <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-gray-100 text-gray-700">
+                        {isSeller ? "Selling" : "Buying"}
+                      </span>
+                      <span
+                        className={`text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full ${
+                          ord.status === "released" || ord.status === "paid_out"
+                            ? "bg-emerald-100 text-emerald-800"
+                            : ord.status === "disputed"
+                            ? "bg-red-100 text-red-700"
+                            : "bg-amber-100 text-amber-800"
+                        }`}
+                      >
+                        {ord.status.replace("_", " ")}
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-black text-gray-900">
+                        ₦{Number(ord.item_amount).toLocaleString("en-NG")}
+                      </p>
+                      {isSeller && (
+                        <p className="text-[11px] font-bold text-emerald-700">
+                          Net Payout: ₦{Number(ord.seller_payout_amount).toLocaleString("en-NG")} (after 3% fee)
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="text-xs text-gray-700 space-y-0.5">
+                    <p>
+                      Item: <span className="font-bold">{ord.ad_title || `Ad #${ord.ad_id}`}</span>
+                    </p>
+                    <p>
+                      Buyer: <span className="font-semibold">{ord.buyer_name}</span> ({ord.buyer_phone})
+                      {ord.delivery_address ? ` • Delivery: ${ord.delivery_address}` : ""}
+                    </p>
+                    {ord.waybill_info && (
+                      <p className="text-blue-700 font-medium">Dispatch Info: {ord.waybill_info}</p>
+                    )}
+                    {ord.auto_release_at && ord.status === "dispatched" && (
+                      <p className="text-amber-700 font-bold">
+                        Auto-releases on: {new Date(ord.auto_release_at).toLocaleString("en-GB")}
+                      </p>
+                    )}
+                    {ord.dispute_reason && (
+                      <p className="text-red-600 font-bold">Dispute Reason: {ord.dispute_reason}</p>
+                    )}
+                  </div>
+
+                  {/* Seller Action: Mark Dispatched */}
+                  {isSeller && ord.status === "funded" && (
+                    <div className="flex flex-col sm:flex-row gap-2 pt-2">
+                      <input
+                        type="text"
+                        placeholder="Courier / Waybill / Driver details (optional)"
+                        value={waybillInputs[ord.id] || ""}
+                        onChange={(e) =>
+                          setWaybillInputs((prev) => ({ ...prev, [ord.id]: e.target.value }))
+                        }
+                        className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-xs outline-none focus:border-emerald-600"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleTrustDispatch(ord.id)}
+                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-black shrink-0"
+                      >
+                        Mark Dispatched (Start 72h Clock)
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Buyer Action: Confirm Receipt or Raise Dispute */}
+                  {isBuyer && ["funded", "dispatched"].includes(ord.status) && (
+                    <div className="pt-2 space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleTrustConfirm(ord.id)}
+                          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-black"
+                        >
+                          ✓ Confirm Receipt &amp; Release Funds
+                        </button>
+                      </div>
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <input
+                          type="text"
+                          placeholder="Issue with item? Enter dispute reason to freeze payout..."
+                          value={disputeReasons[ord.id] || ""}
+                          onChange={(e) =>
+                            setDisputeReasons((prev) => ({ ...prev, [ord.id]: e.target.value }))
+                          }
+                          className="flex-1 px-3 py-1.5 border border-gray-200 rounded-lg text-xs outline-none focus:border-red-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleTrustDispute(ord.id)}
+                          className="px-3.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-lg text-xs font-bold shrink-0"
+                        >
+                          Raise Dispute
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })
           )}
         </div>
       )}
