@@ -373,6 +373,37 @@ export default function AdDetailsClient({
     }
   };
 
+    // Automatically verify real Paystack redirect (?trust_ref=...) and open Receipt + WhatsApp Share
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const trustRef = params.get('trust_ref') || params.get('reference') || params.get('trxref');
+    if (!trustRef || !trustRef.startsWith('JITRUST_')) return;
+
+    const token = localStorage.getItem('ji_token');
+    fetch(`${API_URL}/payments/trust/verify/${encodeURIComponent(trustRef)}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.status === 'funded' && data?.order) {
+          setTrustOrderData({
+            reference: data.order.reference,
+            amount: Number(data.order.item_amount || ad.price || 0),
+            buyer_name: data.order.buyer_name || '',
+            buyer_phone: data.order.buyer_phone || '',
+            delivery_address: data.order.delivery_address || '',
+            demo_mode: false,
+          });
+          setTrustCheckoutStep('receipt');
+          setShowTrustModal(true);
+          window.dispatchEvent(new Event('ji_notifications_updated'));
+          window.history.replaceState({}, '', window.location.pathname);
+        }
+      })
+      .catch(() => {});
+  }, [ad.id, ad.price]);
+
   const handleStartJiTrustCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
     const token = localStorage.getItem("ji_token");
