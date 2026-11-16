@@ -164,9 +164,11 @@ function NavbarContent() {
     syncUser();
     window.addEventListener('ji_user_updated', syncUser);
     window.addEventListener('ji_wishlist_updated', onWishlistUpdated);
+    window.addEventListener('ji_notifications_updated', fetchNotifications);
     return () => {
       window.removeEventListener('ji_user_updated', syncUser);
       window.removeEventListener('ji_wishlist_updated', onWishlistUpdated);
+      window.removeEventListener('ji_notifications_updated', fetchNotifications);
     };
   }, [fetchNotifications, syncWishlistState]);
 

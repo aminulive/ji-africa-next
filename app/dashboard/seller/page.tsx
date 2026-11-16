@@ -150,6 +150,8 @@ function SellerDashboardContent() {
 
   // Verify returning Paystack / NowPayments redirect
   useEffect(() => {
+    const initialTab = searchParams?.get('tab');
+    if (initialTab === 'trust') setActiveTab('trust');
     const trustRef = searchParams?.get('trust_ref');
     const trustDemo = searchParams?.get('demo') === '1' ? '?demo=1' : '';
     const savedTok = typeof window !== 'undefined' ? localStorage.getItem('ji_token') : null;

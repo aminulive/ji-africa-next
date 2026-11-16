@@ -26,6 +26,11 @@ import {
   Star,
   Eye,
   Tag,
+  Truck,
+  CreditCard,
+  Building2,
+  Smartphone,
+  Sparkles,
 } from 'lucide-react';
 import ProductCard from './ProductCard';
 
@@ -80,6 +85,10 @@ export default function AdDetailsClient({
   const [trustBuyerPhone, setTrustBuyerPhone] = useState("");
   const [trustAddress, setTrustAddress] = useState("");
   const [startingTrust, setStartingTrust] = useState(false);
+  const [trustCheckoutStep, setTrustCheckoutStep] = useState<'details' | 'paystack' | 'receipt'>('details');
+  const [trustOrderData, setTrustOrderData] = useState<any>(null);
+  const [payMethod, setPayMethod] = useState<'card' | 'transfer' | 'ussd'>('card');
+  const [confirmingPaystack, setConfirmingPaystack] = useState(false);
 
   // Request Callback Modal State
   const [showCallbackModal, setShowCallbackModal] = useState(false);
@@ -392,8 +401,21 @@ export default function AdDetailsClient({
         }),
       });
       const data = await res.json().catch(() => ({}));
-      if (res.ok && data.authorization_url) {
-        window.location.href = data.authorization_url;
+      if (res.ok && data.reference) {
+        setStartingTrust(false);
+        if (!data.demo_mode && data.authorization_url && !data.authorization_url.includes("demo=1")) {
+          window.location.href = data.authorization_url;
+          return;
+        }
+        setTrustOrderData({
+          reference: data.reference,
+          amount: Number(ad.price || 0),
+          buyer_name: trustBuyerName.trim(),
+          buyer_phone: trustBuyerPhone.trim(),
+          delivery_address: trustAddress.trim(),
+          demo_mode: Boolean(data.demo_mode),
+        });
+        setTrustCheckoutStep('paystack');
       } else {
         notify(data.error || "Could not initialize JI Trust checkout");
         setStartingTrust(false);
@@ -401,6 +423,33 @@ export default function AdDetailsClient({
     } catch {
       notify("Network error initializing JI Trust");
       setStartingTrust(false);
+    }
+  };
+
+  const handleCompletePaystackTrustPayment = async () => {
+    if (!trustOrderData?.reference) return;
+    const token = localStorage.getItem("ji_token");
+    setConfirmingPaystack(true);
+    try {
+      const demoParam = trustOrderData.demo_mode ? "?demo=1" : "";
+      const res = await fetch(
+        `${API_URL}/payments/trust/verify/${encodeURIComponent(trustOrderData.reference)}${demoParam}`,
+        {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.status === "funded") {
+        setTrustCheckoutStep('receipt');
+        window.dispatchEvent(new Event('ji_notifications_updated'));
+        notify("Payment confirmed! Funds secured in JI Trust Escrow.");
+      } else {
+        notify(data.error || "Could not verify payment yet");
+      }
+    } catch {
+      notify("Network error confirming payment");
+    } finally {
+      setConfirmingPaystack(false);
     }
   };
 
@@ -629,7 +678,7 @@ export default function AdDetailsClient({
                 ) : (
                   <button
                     type="button"
-                    onClick={() => setShowTrustModal(true)}
+                    onClick={() => { setTrustCheckoutStep('details'); setShowTrustModal(true); }}
                     className="flex-1 py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-black shadow-xs flex items-center justify-center gap-1.5"
                   >
                     <ShieldCheck className="w-4 h-4 shrink-0" /> Buy Safely with JI Trust
@@ -695,23 +744,63 @@ export default function AdDetailsClient({
               )}
             </div>
 
-            {/* Bordered Specification Table (Brand-Styled for Light & Dark Mode) */}
-            <div className="mb-6 pt-4 border-t border-gray-100">
-              <div className="border border-orange-200/80 dark:border-gray-700 rounded-xl overflow-hidden">
-                <table className="w-full text-left border-collapse">
-                  <tbody className="divide-y divide-orange-100/80 dark:divide-gray-700">
-                    {specItems.map((spec) => (
-                      <tr key={spec.label} className="hover:bg-orange-50/30 dark:hover:bg-gray-800/40 transition">
-                        <th className="w-2/5 py-2.5 px-3.5 text-[11px] uppercase tracking-wider font-extrabold text-brand-orange bg-orange-50/50 dark:bg-gray-900/50 border-r border-orange-100/80 dark:border-gray-700">
-                          {spec.label}
-                        </th>
-                        <td className="py-2.5 px-3.5 text-xs sm:text-sm font-bold text-gray-900 dark:text-gray-100">
-                          {spec.value}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            {/* Clean Jiji-Style Key Highlights & 2-Column Attribute Grid */}
+            <div className="mb-6 pt-4 border-t border-gray-100 dark:border-gray-800 space-y-5">
+              {/* Top Icon Highlights Row */}
+              <div className="flex flex-wrap items-center gap-6 sm:gap-8 pb-4 border-b border-gray-100 dark:border-gray-800">
+                <div className="flex flex-col items-center text-center min-w-[68px]">
+                  <div className="w-9 h-9 rounded-full bg-orange-50 dark:bg-orange-500/10 text-brand-orange flex items-center justify-center mb-1.5">
+                    <Sparkles className="w-4 h-4" />
+                  </div>
+                  <span className="text-xs font-semibold text-gray-800 dark:text-gray-200">
+                    {ad.condition || 'Used'}
+                  </span>
+                </div>
+
+                {ad.delivery_option && (
+                  <div className="flex flex-col items-center text-center min-w-[68px]">
+                    <div className="w-9 h-9 rounded-full bg-orange-50 dark:bg-orange-500/10 text-brand-orange flex items-center justify-center mb-1.5">
+                      <Truck className="w-4 h-4" />
+                    </div>
+                    <span className="text-xs font-semibold text-gray-800 dark:text-gray-200">
+                      {ad.delivery_option}
+                    </span>
+                  </div>
+                )}
+
+                <div className="flex flex-col items-center text-center min-w-[68px]">
+                  <div className="w-9 h-9 rounded-full bg-orange-50 dark:bg-orange-500/10 text-brand-orange flex items-center justify-center mb-1.5">
+                    <Tag className="w-4 h-4" />
+                  </div>
+                  <span className="text-xs font-semibold text-gray-800 dark:text-gray-200">
+                    {ad.is_negotiable ? 'Negotiable' : 'Fixed Price'}
+                  </span>
+                </div>
+
+                {ad.ji_trust_enabled && (
+                  <div className="flex flex-col items-center text-center min-w-[68px]">
+                    <div className="w-9 h-9 rounded-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mb-1.5">
+                      <ShieldCheck className="w-4 h-4" />
+                    </div>
+                    <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                      JI Trust
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Clean 2-Column Stacked Value + Uppercase Label Grid */}
+              <div className="grid grid-cols-2 gap-x-8 gap-y-4">
+                {specItems.map((spec) => (
+                  <div key={spec.label} className="min-w-0">
+                    <p className="text-xs sm:text-sm font-bold text-gray-900 dark:text-gray-100 truncate">
+                      {spec.value}
+                    </p>
+                    <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 dark:text-gray-400 mt-0.5">
+                      {spec.label}
+                    </p>
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -925,7 +1014,7 @@ export default function AdDetailsClient({
                     ) : (
                       <button
                         type="button"
-                        onClick={() => setShowTrustModal(true)}
+                        onClick={() => { setTrustCheckoutStep('details'); setShowTrustModal(true); }}
                         className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-sm transition flex items-center justify-center gap-1.5"
                       >
                         <ShieldCheck className="w-4 h-4" /> Buy Safely with JI Trust (Escrow)
@@ -1302,77 +1391,293 @@ export default function AdDetailsClient({
 
       {showTrustModal && (
         <div className="fixed inset-0 bg-gray-900/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-md rounded-2xl overflow-hidden shadow-2xl border border-gray-200">
-            <div className="p-4 bg-emerald-900 text-white flex items-center justify-between">
-              <div>
-                <h3 className="font-black text-sm">🛡️ JI Trust Escrow Protection</h3>
-                <p className="text-[11px] text-emerald-200 truncate max-w-xs">{ad.title}</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowTrustModal(false)}
-                className="text-emerald-200 hover:text-white text-xs font-bold px-2 py-1"
-              >
-                ✕
-              </button>
-            </div>
-            <form onSubmit={handleStartJiTrustCheckout} className="p-5 space-y-4">
-              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3.5 space-y-1.5 text-xs text-emerald-950">
-                <div className="flex justify-between font-black text-sm">
-                  <span>Escrow Amount</span>
-                  <span className="text-emerald-700">₦{Number(ad.price || 0).toLocaleString("en-NG")}</span>
-                </div>
-                <p className="text-[11px] text-emerald-800 leading-relaxed">
-                  1. Your money is held safely by <strong>ji.africa</strong>—not sent to the seller yet.<br />
-                  2. Seller ships/delivers upon escrow confirmation.<br />
-                  3. You have <strong>72 hours</strong> after dispatch to inspect &amp; confirm receipt before payout.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {trustCheckoutStep === 'details' && (
+            <div className="bg-white w-full max-w-md rounded-2xl overflow-hidden shadow-2xl border border-gray-200 text-gray-900">
+              <div className="p-4 bg-emerald-900 text-white flex items-center justify-between">
                 <div>
-                  <label className="block text-[11px] font-bold text-gray-600 mb-1">Your Full Name</label>
+                  <h3 className="font-black text-sm">🛡️ JI Trust Escrow Protection</h3>
+                  <p className="text-[11px] text-emerald-200 truncate max-w-xs">{ad.title}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowTrustModal(false)}
+                  className="text-emerald-200 hover:text-white text-xs font-bold px-2 py-1"
+                >
+                  ✕
+                </button>
+              </div>
+              <form onSubmit={handleStartJiTrustCheckout} className="p-5 space-y-4">
+                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3.5 space-y-1.5 text-xs text-emerald-950">
+                  <div className="flex justify-between font-black text-sm">
+                    <span>Escrow Amount</span>
+                    <span className="text-emerald-700">₦{Number(ad.price || 0).toLocaleString("en-NG")}</span>
+                  </div>
+                  <p className="text-[11px] text-emerald-800 leading-relaxed">
+                    1. Your money is held safely by <strong>ji.africa</strong>—not sent to the seller yet.<br />
+                    2. Seller ships/delivers upon escrow confirmation.<br />
+                    3. You have <strong>72 hours</strong> after dispatch to inspect &amp; confirm receipt before payout.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-600 mb-1">Your Full Name</label>
+                    <input
+                      type="text"
+                      required
+                      value={trustBuyerName}
+                      onChange={(e) => setTrustBuyerName(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs outline-none focus:border-emerald-600"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-600 mb-1">Phone / WhatsApp</label>
+                    <input
+                      type="tel"
+                      required
+                      value={trustBuyerPhone}
+                      onChange={(e) => setTrustBuyerPhone(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs outline-none focus:border-emerald-600"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-600 mb-1">Delivery Address / Meetup Location</label>
                   <input
                     type="text"
                     required
-                    value={trustBuyerName}
-                    onChange={(e) => setTrustBuyerName(e.target.value)}
+                    value={trustAddress}
+                    onChange={(e) => setTrustAddress(e.target.value)}
+                    placeholder="e.g. Wuse 2, Abuja or Park Waybill"
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs outline-none focus:border-emerald-600"
                   />
                 </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-gray-600 mb-1">Phone / WhatsApp</label>
-                  <input
-                    type="tel"
-                    required
-                    value={trustBuyerPhone}
-                    onChange={(e) => setTrustBuyerPhone(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs outline-none focus:border-emerald-600"
-                  />
+
+                <button
+                  type="submit"
+                  disabled={startingTrust}
+                  className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-md disabled:opacity-60"
+                >
+                  {startingTrust ? "Initializing Paystack Checkout..." : "Proceed to Paystack Payment"}
+                </button>
+              </form>
+            </div>
+          )}
+
+          {trustCheckoutStep === 'paystack' && trustOrderData && (
+            <div className="bg-white w-full max-w-md rounded-2xl overflow-hidden shadow-2xl border border-gray-200 text-gray-900">
+              <div className="p-4 bg-[#011B33] text-white flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-7 h-7 rounded bg-[#0BA4DB] flex items-center justify-center font-black text-xs text-white">
+                    P
+                  </div>
+                  <div>
+                    <p className="text-xs font-black tracking-wide">Paystack Secure Checkout</p>
+                    <p className="text-[10px] text-sky-200">{currentUser?.email || 'buyer@ji.africa'}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] text-gray-300 uppercase">Pay</p>
+                  <p className="text-sm font-black text-[#0BA4DB]">
+                    ₦{Number(trustOrderData.amount).toLocaleString("en-NG")}
+                  </p>
                 </div>
               </div>
 
-              <div>
-                <label className="block text-[11px] font-bold text-gray-600 mb-1">Delivery Address / Meetup Location</label>
-                <input
-                  type="text"
-                  required
-                  value={trustAddress}
-                  onChange={(e) => setTrustAddress(e.target.value)}
-                  placeholder="e.g. Wuse 2, Abuja or Park Waybill"
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs outline-none focus:border-emerald-600"
-                />
+              <div className="grid grid-cols-3 border-b border-gray-200 bg-gray-50 text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => setPayMethod('card')}
+                  className={`py-3 flex items-center justify-center gap-1.5 border-b-2 transition ${
+                    payMethod === 'card'
+                      ? 'border-[#0BA4DB] text-[#011B33] bg-white'
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  <CreditCard className="w-3.5 h-3.5 text-[#0BA4DB]" /> Card
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPayMethod('transfer')}
+                  className={`py-3 flex items-center justify-center gap-1.5 border-b-2 transition ${
+                    payMethod === 'transfer'
+                      ? 'border-[#0BA4DB] text-[#011B33] bg-white'
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  <Building2 className="w-3.5 h-3.5 text-[#0BA4DB]" /> Transfer
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPayMethod('ussd')}
+                  className={`py-3 flex items-center justify-center gap-1.5 border-b-2 transition ${
+                    payMethod === 'ussd'
+                      ? 'border-[#0BA4DB] text-[#011B33] bg-white'
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  <Smartphone className="w-3.5 h-3.5 text-[#0BA4DB]" /> USSD
+                </button>
               </div>
 
-              <button
-                type="submit"
-                disabled={startingTrust}
-                className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-md disabled:opacity-60"
-              >
-                {startingTrust ? "Securing Escrow..." : "Proceed to Fund JI Trust"}
-              </button>
-            </form>
-          </div>
+              <div className="p-5 space-y-4">
+                {payMethod === 'card' && (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-gray-500 mb-1">Card Number</label>
+                      <input
+                        type="text"
+                        defaultValue="4084 0840 8408 4081"
+                        className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-xs font-mono font-bold tracking-wider outline-none focus:border-[#0BA4DB]"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase text-gray-500 mb-1">Card Expiry</label>
+                        <input
+                          type="text"
+                          defaultValue="09 / 29"
+                          className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-xs font-mono font-bold outline-none focus:border-[#0BA4DB]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase text-gray-500 mb-1">CVV</label>
+                        <input
+                          type="password"
+                          defaultValue="408"
+                          maxLength={4}
+                          className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-xs font-mono font-bold outline-none focus:border-[#0BA4DB]"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {payMethod === 'transfer' && (
+                  <div className="bg-sky-50 border border-sky-200 rounded-xl p-4 text-center space-y-1.5">
+                    <p className="text-[11px] font-bold text-gray-600">Transfer exact amount to JI Trust Escrow Account:</p>
+                    <p className="text-lg font-black font-mono text-[#011B33] tracking-wider">9940281745</p>
+                    <p className="text-xs font-bold text-[#0BA4DB]">Paystack-Titan • JI AFRICA ESCROW</p>
+                    <p className="text-[11px] text-gray-500 pt-1">Ref: {trustOrderData.reference}</p>
+                  </div>
+                )}
+
+                {payMethod === 'ussd' && (
+                  <div className="bg-sky-50 border border-sky-200 rounded-xl p-4 text-center space-y-1.5">
+                    <p className="text-[11px] font-bold text-gray-600">Dial your bank USSD code to authorize escrow:</p>
+                    <p className="text-lg font-black font-mono text-[#011B33]">*737*000*9582#</p>
+                    <p className="text-[11px] text-gray-500">GTBank • Access • Zenith • FirstBank • UBA</p>
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  disabled={confirmingPaystack}
+                  onClick={handleCompletePaystackTrustPayment}
+                  className="w-full py-3 bg-[#3BB75E] hover:bg-[#32a050] text-white rounded-xl text-xs font-black shadow-md flex items-center justify-center gap-2 disabled:opacity-60"
+                >
+                  {confirmingPaystack ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" /> Confirming Payment with Paystack...
+                    </>
+                  ) : (
+                    `Pay NGN ${Number(trustOrderData.amount).toLocaleString("en-NG")}`
+                  )}
+                </button>
+
+                <div className="flex items-center justify-between pt-1 text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => setTrustCheckoutStep('details')}
+                    className="text-gray-500 hover:text-gray-800 font-bold"
+                  >
+                    ← Back
+                  </button>
+                  <span className="text-gray-400 font-semibold">🔒 Secured by Paystack</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowTrustModal(false)}
+                    className="text-red-500 hover:text-red-700 font-bold"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {trustCheckoutStep === 'receipt' && trustOrderData && (
+            <div className="bg-white w-full max-w-md rounded-2xl overflow-hidden shadow-2xl border border-emerald-200 text-gray-900">
+              <div className="p-5 bg-emerald-700 text-white text-center space-y-1.5">
+                <div className="w-12 h-12 rounded-full bg-white/20 mx-auto flex items-center justify-center">
+                  <CheckCircle2 className="w-7 h-7 text-white" />
+                </div>
+                <h3 className="font-black text-base">JI Trust Payment Confirmed!</h3>
+                <p className="text-xs text-emerald-100">
+                  Your funds are safely locked in escrow &amp; the seller has been notified.
+                </p>
+              </div>
+
+              <div className="p-5 space-y-4 text-xs">
+                <div className="bg-gray-50 border border-gray-200 rounded-xl p-3.5 space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Escrow Reference</span>
+                    <span className="font-mono font-bold text-gray-900">{trustOrderData.reference}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Item</span>
+                    <span className="font-bold text-gray-900 truncate max-w-[200px]">{ad.title}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Amount Secured</span>
+                    <span className="font-black text-emerald-700">
+                      ₦{Number(trustOrderData.amount).toLocaleString("en-NG")}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Delivery Location</span>
+                    <span className="font-semibold text-gray-800 truncate max-w-[190px]">
+                      {trustOrderData.delivery_address || 'Abuja / Agreed Meetup'}
+                    </span>
+                  </div>
+                </div>
+
+                {formattedPhone && (
+                  <a
+                    href={`https://wa.me/${formattedPhone.replace('+', '')}?text=${encodeURIComponent(
+                      `Hello ${ad.seller_shop_name || ad.seller_name || 'Seller'}, I just funded *JI Trust Escrow* on *ji.africa* for your advert:\n\n*Item:* ${ad.title}\n*Amount Secured:* ₦${Number(trustOrderData.amount).toLocaleString("en-NG")}\n*Escrow Ref:* ${trustOrderData.reference}\n*Buyer:* ${trustOrderData.buyer_name} (${trustOrderData.buyer_phone})\n*Delivery:* ${trustOrderData.delivery_address}\n*Listing:* ${adPageUrl}\n\nPlease proceed to dispatch/deliver and mark it dispatched in your ji.africa Seller Dashboard.`
+                    )}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full py-3 bg-[#25D366] hover:bg-[#128C7E] text-white rounded-xl text-xs font-black shadow-md flex items-center justify-center gap-2 transition"
+                  >
+                    <MessageCircle className="w-4 h-4" /> Share Payment Details on WhatsApp
+                  </a>
+                )}
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowTrustModal(false);
+                      router.push("/dashboard/seller?tab=trust");
+                    }}
+                    className="flex-1 py-2.5 bg-gray-900 hover:bg-gray-800 text-white rounded-xl text-xs font-bold transition"
+                  >
+                    Go to Escrow Dashboard
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowTrustModal(false)}
+                    className="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-bold transition"
+                  >
+                    Done
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1406,6 +1711,7 @@ export default function AdDetailsClient({
                     type="button"
                     onClick={() => {
                       setShowTrustInfoModal(false);
+                      setTrustCheckoutStep('details');
                       setShowTrustModal(true);
                     }}
                     className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-xs"
