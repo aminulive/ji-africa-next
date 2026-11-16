@@ -55,6 +55,7 @@ export default function ProfilePage() {
   const [phone, setPhone] = useState('');
   const [shopAddress, setShopAddress] = useState('');
   const [shopDescription, setShopDescription] = useState('');
+  const [jiTrustEnrolled, setJiTrustEnrolled] = useState(false);
   const [payoutBankName, setPayoutBankName] = useState('');
   const [payoutAccountNumber, setPayoutAccountNumber] = useState('');
   const [payoutAccountName, setPayoutAccountName] = useState('');
@@ -111,6 +112,7 @@ export default function ProfilePage() {
       setPhone(u.phone || '');
       setShopAddress(u.shop_address || '');
       setShopDescription(u.shop_description || '');
+      setJiTrustEnrolled(Boolean(u.ji_trust_enrolled || (u.payout_bank_name && u.payout_account_number)));
       setPayoutBankName(u.payout_bank_name || '');
       setPayoutAccountNumber(u.payout_account_number || '');
       setPayoutAccountName(u.payout_account_name || '');
@@ -124,6 +126,27 @@ export default function ProfilePage() {
       });
       setProfilePreview(resolveImageUrl(u.profile_image, 'https://placehold.co/150x150?text=U'));
       setBannerPreview(resolveImageUrl(u.shop_image, 'https://placehold.co/800x200?text=Banner'));
+      fetch(`${API_URL}/users/profile`, { headers: { Authorization: `Bearer ${token}` } })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (d?.user) {
+            const fresh = d.user;
+            setUser(fresh);
+            setFullName(fresh.full_name || '');
+            setUsername(fresh.username || '');
+            setShopName(fresh.shop_name || '');
+            setPhone(fresh.phone || '');
+            setShopAddress(fresh.shop_address || '');
+            setShopDescription(fresh.shop_description || '');
+            setJiTrustEnrolled(Boolean(fresh.ji_trust_enrolled || (fresh.payout_bank_name && fresh.payout_account_number)));
+            setPayoutBankName(fresh.payout_bank_name || '');
+            setPayoutAccountNumber(fresh.payout_account_number || '');
+            setPayoutAccountName(fresh.payout_account_name || '');
+            localStorage.setItem('ji_user', JSON.stringify(fresh));
+          }
+        })
+        .catch(() => {});
+
       fetch(`${API_URL}/users/kyc`, { headers: { Authorization: `Bearer ${token}` } })
         .then((r) => (r.ok ? r.json() : null))
         .then((d) => {
@@ -301,6 +324,7 @@ export default function ProfilePage() {
     formData.append('phone', phone);
     formData.append('shop_address', shopAddress);
     formData.append('shop_description', shopDescription);
+    formData.append('ji_trust_enrolled', jiTrustEnrolled ? 'true' : 'false');
     formData.append('payout_bank_name', payoutBankName);
     formData.append('payout_account_number', payoutAccountNumber);
     formData.append('payout_account_name', payoutAccountName);
@@ -451,6 +475,11 @@ export default function ProfilePage() {
             {user.is_email_verified && (
               <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-0.5 rounded-full text-[11px] font-bold">
                 <CheckCircle2 className="w-3.5 h-3.5" /> Email Verified
+              </span>
+            )}
+            {jiTrustEnrolled && (
+              <span className="inline-flex items-center gap-1 bg-emerald-600 text-white px-2.5 py-0.5 rounded-full text-[11px] font-black shadow-xs">
+                <ShieldCheck className="w-3.5 h-3.5" /> JI Trust Seller
               </span>
             )}
           </h2>
@@ -725,9 +754,20 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        <h3 className="font-bold text-gray-900 border-b border-gray-100 pb-2 pt-4">
-          JI Trust Escrow Payout Bank Account
-        </h3>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 pb-2 pt-4">
+          <h3 className="font-bold text-gray-900 flex items-center gap-2">
+            🛡️ JI Trust Escrow Protection &amp; Payout Bank Account
+          </h3>
+          <label className="inline-flex items-center gap-2 text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg cursor-pointer">
+            <input
+              type="checkbox"
+              checked={jiTrustEnrolled}
+              onChange={(e) => setJiTrustEnrolled(e.target.checked)}
+              className="w-4 h-4 accent-emerald-600"
+            />
+            <span>Accept JI Trust Escrow on My Shop</span>
+          </label>
+        </div>
         <p className="text-xs text-gray-500 -mt-3">
           Where ji.africa settles your funds after a buyer confirms receipt or the 72-hour JI Trust inspection period elapses.
         </p>

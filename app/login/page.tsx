@@ -54,6 +54,12 @@ export default function LoginPage() {
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [newsletterSubscribed, setNewsletterSubscribed] = useState(true);
   const [showTermsModal, setShowTermsModal] = useState(false);
+  const [jiTrustEnrolled, setJiTrustEnrolled] = useState(false);
+  const [jiTrustTermsAccepted, setJiTrustTermsAccepted] = useState(false);
+  const [showJiTrustModal, setShowJiTrustModal] = useState(false);
+  const [payoutBankName, setPayoutBankName] = useState('');
+  const [payoutAccountNumber, setPayoutAccountNumber] = useState('');
+  const [payoutAccountName, setPayoutAccountName] = useState('');
 
   // Verification & Password Reset States
   const [otpCode, setOtpCode] = useState('');
@@ -167,6 +173,23 @@ export default function LoginPage() {
         formData.append('password', password);
         formData.append('accepted_terms', 'true');
         formData.append('newsletter_subscribed', newsletterSubscribed ? 'true' : 'false');
+        if (jiTrustEnrolled) {
+          if (!jiTrustTermsAccepted) {
+            setError('Please read and accept the JI Trust Seller Terms & Conditions.');
+            setLoading(false);
+            return;
+          }
+          if (!payoutBankName.trim() || payoutAccountNumber.trim().length < 10 || !payoutAccountName.trim()) {
+            setError('Please enter your Bank Name, 10-digit Account Number, and Account Name for JI Trust payouts.');
+            setLoading(false);
+            return;
+          }
+          formData.append('ji_trust_enrolled', 'true');
+          formData.append('ji_trust_terms_accepted', 'true');
+          formData.append('payout_bank_name', payoutBankName.trim());
+          formData.append('payout_account_number', payoutAccountNumber.trim());
+          formData.append('payout_account_name', payoutAccountName.trim());
+        }
 
         if (shopName) formData.append('shop_name', shopName);
         if (shopAddress) formData.append('shop_address', shopAddress);
@@ -578,6 +601,81 @@ export default function LoginPage() {
               </div>
             </div>
 
+            {/* Optional Seller Enrollment in JI Trust Escrow Protection */}
+            <div className="pt-3 border-t border-gray-100">
+              <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-3.5 space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-black text-emerald-950 flex items-center gap-1.5">
+                      🛡️ Join JI Trust Escrow Protection (For Sellers)
+                    </p>
+                    <p className="text-[11px] text-emerald-800 mt-0.5 leading-relaxed">
+                      Receive secure escrow payments from buyers across Nigeria. Funds are held by ji.africa and disbursed to your bank after buyer confirmation or 72h inspection (3% fee on completed sales).
+                    </p>
+                  </div>
+                  <input
+                    id="enroll-ji-trust"
+                    type="checkbox"
+                    checked={jiTrustEnrolled}
+                    onChange={(e) => setJiTrustEnrolled(e.target.checked)}
+                    className="mt-1 w-4 h-4 accent-emerald-600 cursor-pointer shrink-0"
+                  />
+                </div>
+
+                {jiTrustEnrolled && (
+                  <div className="space-y-2.5 pt-2 border-t border-emerald-200/80">
+                    <p className="text-[11px] font-bold text-emerald-900 uppercase">
+                      Seller Settlement Bank Account Details
+                    </p>
+                    <input
+                      type="text"
+                      placeholder="Bank Name (e.g. GTBank, Zenith, Access, OPay) *"
+                      value={payoutBankName}
+                      onChange={(e) => setPayoutBankName(e.target.value)}
+                      className="w-full px-3 py-2 border border-emerald-200 rounded-lg text-xs bg-white focus:outline-none focus:border-emerald-600"
+                    />
+                    <input
+                      type="text"
+                      maxLength={10}
+                      placeholder="10-Digit Account Number *"
+                      value={payoutAccountNumber}
+                      onChange={(e) => setPayoutAccountNumber(e.target.value.replace(/D/g, ''))}
+                      className="w-full px-3 py-2 border border-emerald-200 rounded-lg text-xs bg-white focus:outline-none focus:border-emerald-600"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Account Holder Full Name *"
+                      value={payoutAccountName}
+                      onChange={(e) => setPayoutAccountName(e.target.value)}
+                      className="w-full px-3 py-2 border border-emerald-200 rounded-lg text-xs bg-white focus:outline-none focus:border-emerald-600"
+                    />
+
+                    <div className="flex items-start gap-2 pt-1">
+                      <input
+                        id="accept-ji-trust-terms"
+                        type="checkbox"
+                        checked={jiTrustTermsAccepted}
+                        onChange={(e) => setJiTrustTermsAccepted(e.target.checked)}
+                        className="mt-0.5 w-4 h-4 accent-emerald-600 cursor-pointer shrink-0"
+                      />
+                      <div className="text-[11px] text-emerald-950 leading-relaxed">
+                        <label htmlFor="accept-ji-trust-terms" className="cursor-pointer">
+                          I have read and agree to the <strong>JI Trust Escrow Seller Terms &amp; Conditions</strong> (3% escrow fee &amp; 72-hour buyer inspection policy).
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setShowJiTrustModal(true)}
+                          className="ml-1.5 inline-flex items-center text-[10px] font-black text-emerald-800 bg-white border border-emerald-300 px-2 py-0.5 rounded hover:bg-emerald-100 transition"
+                        >
+                          Read JI Trust Terms
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
             <div className="pt-3 border-t border-gray-100 space-y-3">
               <div className="flex items-start gap-2.5 bg-orange-50/70 p-3 rounded-xl border border-orange-100">
                 <input
@@ -760,6 +858,63 @@ export default function LoginPage() {
           </form>
         )}
       </div>
+
+      {/* JI Trust Seller Terms & Conditions Modal */}
+      {showJiTrustModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-emerald-200 overflow-hidden text-gray-900">
+            <div className="px-5 py-4 bg-emerald-900 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2 font-bold text-sm">
+                <ShieldCheck className="w-5 h-5 text-emerald-300" />
+                <span>JI Trust Escrow Protection — Seller Terms</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowJiTrustModal(false)}
+                className="text-emerald-200 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 max-h-80 overflow-y-auto text-xs text-gray-700 space-y-3 leading-relaxed">
+              <p>
+                <strong>1. Escrow Holding:</strong> When a buyer pays via JI Trust, ji.africa holds 100% of the item price in escrow until delivery is completed. Never release goods before seeing "Funded" in your Seller Dashboard.
+              </p>
+              <p>
+                <strong>2. Dispatch &amp; 72-Hour Inspection Window:</strong> Once funded, dispatch the item promptly and click <em>Mark Dispatched</em> with waybill/courier details. The buyer has 72 hours after dispatch to inspect and confirm receipt.
+              </p>
+              <p>
+                <strong>3. Automatic Release &amp; 3% Commission:</strong> Upon buyer confirmation—or automatically after 72 hours without an active dispute—ji.africa deducts a <strong>3% JI Trust escrow commission</strong> and disburses the remaining 97% to your registered Nigerian bank account.
+              </p>
+              <p>
+                <strong>4. Dispute Mediation:</strong> If a buyer opens a dispute within the 72-hour window due to non-delivery or material misrepresentation, payout is paused while JI Trust Admins review waybill and listing evidence.
+              </p>
+            </div>
+
+            <div className="px-5 py-3.5 bg-gray-50 border-t border-gray-100 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowJiTrustModal(false)}
+                className="px-4 py-2 text-xs font-semibold text-gray-600 hover:text-gray-900"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setJiTrustEnrolled(true);
+                  setJiTrustTermsAccepted(true);
+                  setShowJiTrustModal(false);
+                }}
+                className="px-4 py-2 bg-emerald-600 text-white text-xs font-bold rounded-lg hover:bg-emerald-700 transition"
+              >
+                Accept JI Trust Terms
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Quick-Read Terms & Conditions Modal */}
       {showTermsModal && (

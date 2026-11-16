@@ -49,6 +49,7 @@ export default function AdminDashboardPage() {
     'moderation' | 'users' | 'trust' | 'reviews' | 'categories' | 'blog' | 'messages'
   >('moderation');
   const [trustOrders, setTrustOrders] = useState<any[]>([]);
+  const [trustSellers, setTrustSellers] = useState<any[]>([]);
   const [adminReviews, setAdminReviews] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState('');
@@ -166,6 +167,7 @@ export default function AdminDashboardPage() {
       if (trustRes?.ok) {
         const tJson = await trustRes.json();
         setTrustOrders(tJson.orders || []);
+        setTrustSellers(tJson.enrolledSellers || []);
       }
     } catch (err) {
       console.error('Admin load error:', err);
@@ -1064,6 +1066,33 @@ export default function AdminDashboardPage() {
               Track held escrow funds, 3% commission revenue, seller bank payout details, and disputed orders.
             </p>
           </div>
+          {/* Enrolled Sellers & Registered Payout Accounts */}
+          <div className="p-5 bg-emerald-50/40 space-y-3">
+            <h3 className="font-bold text-gray-900 text-xs uppercase tracking-wider">
+              Enrolled JI Trust Sellers &amp; Payout Bank Accounts ({trustSellers.length})
+            </h3>
+            {trustSellers.length === 0 ? (
+              <p className="text-xs text-gray-500">No sellers enrolled in JI Trust yet.</p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {trustSellers.map((s) => (
+                  <div key={s.id} className="bg-white border border-emerald-200 rounded-xl p-3.5 text-xs space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-gray-900">{s.shop_name || s.full_name}</span>
+                      <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                        JI Trust Active
+                      </span>
+                    </div>
+                    <p className="text-gray-500">{s.email} • {s.phone}</p>
+                    <p className="font-semibold text-gray-800 pt-1 border-t border-gray-100">
+                      Bank: {s.payout_bank_name || "—"} | Acct: <span className="font-mono">{s.payout_account_number || "—"}</span> ({s.payout_account_name || "—"})
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           {trustOrders.length === 0 ? (
             <div className="p-10 text-center text-xs text-gray-500">No JI Trust escrow transactions yet.</div>
           ) : (
