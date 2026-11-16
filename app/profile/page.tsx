@@ -14,6 +14,9 @@ import {
   ZoomOut,
   MailCheck,
   RefreshCw,
+  ShieldCheck,
+  FileCheck2,
+  Clock,
 } from 'lucide-react';
 
 const API_URL = 'https://ji-africa-backend.onrender.com/api';
@@ -30,6 +33,13 @@ export default function ProfilePage() {
   const [user, setUser] = useState<any>(null);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  // Seller KYC Verification State
+  const [kycInfo, setKycInfo] = useState<any>(null);
+  const [kycDocType, setKycDocType] = useState("NIN Slip");
+  const [kycDocNumber, setKycDocNumber] = useState("");
+  const [kycFile, setKycFile] = useState<File | null>(null);
+  const [submittingKyc, setSubmittingKyc] = useState(false);
 
   // Inline Email Verification State
   const [sendingOtp, setSendingOtp] = useState(false);
@@ -108,10 +118,54 @@ export default function ProfilePage() {
       });
       setProfilePreview(resolveImageUrl(u.profile_image, 'https://placehold.co/150x150?text=U'));
       setBannerPreview(resolveImageUrl(u.shop_image, 'https://placehold.co/800x200?text=Banner'));
+      fetch(`${API_URL}/users/kyc`, { headers: { Authorization: `Bearer ${token}` } })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (d?.kyc) {
+            setKycInfo(d.kyc);
+            if (d.kyc.kyc_doc_type) setKycDocType(d.kyc.kyc_doc_type);
+            if (d.kyc.kyc_doc_number) setKycDocNumber(d.kyc.kyc_doc_number);
+          }
+        })
+        .catch(() => {});
     } catch {
       router.push('/login');
     }
   }, [router]);
+
+  const handleKycSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!kycFile && !kycInfo?.kyc_doc_url) {
+      notify("Please attach a clear photo or scan of your ID or CAC document.", "error");
+      return;
+    }
+    setSubmittingKyc(true);
+    try {
+      const token = localStorage.getItem("ji_token") || "";
+      const fd = new FormData();
+      fd.append("kyc_doc_type", kycDocType);
+      fd.append("kyc_doc_number", kycDocNumber);
+      if (kycFile) fd.append("kyc_document", kycFile);
+
+      const res = await fetch(`${API_URL}/users/kyc`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      const data = await res.json();
+      if (res.ok && data.kyc) {
+        setKycInfo(data.kyc);
+        setKycFile(null);
+        notify(data.message || "KYC submitted for review!", "success");
+      } else {
+        notify(data.error || "Could not submit KYC document.", "error");
+      }
+    } catch {
+      notify("Network error submitting KYC.", "error");
+    } finally {
+      setSubmittingKyc(false);
+    }
+  };
 
   const handleSendVerificationCode = async () => {
     if (!user?.email || sendingOtp || cooldown > 0) return;
@@ -409,6 +463,115 @@ export default function ProfilePage() {
             </Link>
           </div>
         </div>
+      </div>
+
+      
+      {/* Seller KYC Verification Card */}
+      <div className="bg-white rounded-2xl p-6 sm:p-8 border border-gray-200 shadow-sm space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 pb-3">
+          <div>
+            <h3 className="font-bold text-gray-900 flex items-center gap-2 text-base">
+              <ShieldCheck className="w-5 h-5 text-blue-600" />
+              Seller Identity &amp; Business Verification (KYC)
+            </h3>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Earn the blue Verified Seller badge across your shop and adverts to build instant buyer trust.
+            </p>
+          </div>
+          {user.is_verified || kycInfo?.kyc_status === "verified" ? (
+            <span className="inline-flex items-center gap-1.5 bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1 rounded-full text-xs font-black">
+              <BadgeCheck className="w-4 h-4" /> Verified Seller
+            </span>
+          ) : kycInfo?.kyc_status === "pending" ? (
+            <span className="inline-flex items-center gap-1.5 bg-amber-50 text-amber-800 border border-amber-200 px-3 py-1 rounded-full text-xs font-bold">
+              <Clock className="w-3.5 h-3.5" /> Under Admin Review
+            </span>
+          ) : kycInfo?.kyc_status === "rejected" ? (
+            <span className="inline-flex items-center gap-1.5 bg-red-50 text-red-700 border border-red-200 px-3 py-1 rounded-full text-xs font-bold">
+              <AlertCircle className="w-3.5 h-3.5" /> Resubmission Needed
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-xs font-bold">
+              Not Verified
+            </span>
+          )}
+        </div>
+
+        {kycInfo?.kyc_status === "rejected" && kycInfo?.kyc_rejection_reason && (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-xs text-red-700 font-medium">
+            <strong>Moderator Note:</strong> {kycInfo.kyc_rejection_reason}
+          </div>
+        )}
+
+        {user.is_verified || kycInfo?.kyc_status === "verified" ? (
+          <div className="bg-blue-50/70 border border-blue-100 rounded-xl p-4 text-xs text-blue-900 flex items-center gap-3">
+            <FileCheck2 className="w-5 h-5 text-blue-600 shrink-0" />
+            <div>
+              <p className="font-bold">Your seller identity is verified!</p>
+              <p className="text-blue-700 mt-0.5">
+                Document on file: {kycInfo?.kyc_doc_type || "Government ID / Business Registration"}.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <form onSubmit={handleKycSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+            <div>
+              <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1.5">
+                Document Type
+              </label>
+              <select
+                value={kycDocType}
+                onChange={(e) => setKycDocType(e.target.value)}
+                className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-sm bg-white outline-none focus:border-brand-orange"
+              >
+                <option value="NIN Slip">NIN Slip / National ID</option>
+                <option value="CAC Business Certificate">CAC Business Certificate</option>
+                <option value="International Passport">International Passport</option>
+                <option value="Driver's License">Driver&apos;s License</option>
+                <option value="Voter's Card">Permanent Voter&apos;s Card</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1.5">
+                ID / RC Number (Optional)
+              </label>
+              <input
+                type="text"
+                value={kycDocNumber}
+                onChange={(e) => setKycDocNumber(e.target.value)}
+                placeholder="e.g. RC123456 or NIN"
+                className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-sm outline-none focus:border-brand-orange"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1.5">
+                Upload Document Photo
+              </label>
+              <input
+                type="file"
+                accept="image/*,.pdf"
+                onChange={(e) => setKycFile(e.target.files?.[0] || null)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs cursor-pointer file:mr-2 file:py-1 file:px-2.5 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700"
+              />
+            </div>
+
+            <div className="md:col-span-3 flex flex-wrap items-center justify-between gap-3 pt-1">
+              <p className="text-[11px] text-gray-400">
+                Accepted formats: JPG, PNG, WebP, or PDF. Stored securely for admin verification only.
+              </p>
+              <button
+                type="submit"
+                disabled={submittingKyc}
+                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-sm transition inline-flex items-center gap-2 disabled:opacity-60"
+              >
+                {submittingKyc && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                {kycInfo?.kyc_status === "pending" ? "Update KYC Document" : "Submit for Verification"}
+              </button>
+            </div>
+          </form>
+        )}
       </div>
 
       {/* Profile & Shop Settings Form */}
