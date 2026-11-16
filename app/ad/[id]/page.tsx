@@ -12,9 +12,11 @@ function resolvePrimaryImage(rawImg: any): string {
     const parsed = JSON.parse(rawImg);
     const first = Array.isArray(parsed) ? parsed[0] : rawImg;
     if (!first) return fallback;
-    return first.startsWith("http")
-      ? first
-      : `https://ji-africa-backend.onrender.com${first}`;
+    const full = first.startsWith("http") ? first : `https://ji-africa-backend.onrender.com${first}`;
+    if (full.includes("res.cloudinary.com/") && full.includes("/upload/") && !full.includes("/upload/w_")) {
+      return full.replace("/upload/", "/upload/w_800,c_limit,q_auto:good,f_jpg/");
+    }
+    return full;
   } catch {
     if (typeof rawImg === "string" && rawImg.startsWith("http")) return rawImg;
     return fallback;
@@ -81,7 +83,6 @@ export async function generateMetadata({
     openGraph: {
       title,
       description: description || `Available in ${location} on ji.africa`,
-      url: canonicalUrl,
       siteName: "ji.africa",
       type: "website",
       images: [
