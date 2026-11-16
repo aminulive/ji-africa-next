@@ -22,6 +22,8 @@ import {
   X,
   Loader2,
   Star,
+  Eye,
+  Tag,
 } from 'lucide-react';
 import ProductCard from './ProductCard';
 
@@ -56,12 +58,14 @@ export default function AdDetailsClient({
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [toast, setToast] = useState('');
   const [adPageUrl, setAdPageUrl] = useState(`https://www.ji.africa/ad/${ad.id}`);
+  const [viewsCount, setViewsCount] = useState<number>(Number(ad.views_count) || 0);
 
-  // Animated Click-to-Fill Star Reviews State
+  // Reviews State (PostgreSQL + Local Fallback)
   const [reviews, setReviews] = useState<any[]>([]);
   const [rating, setRating] = useState(5);
   const [hoverRating, setHoverRating] = useState(0);
   const [comment, setComment] = useState('');
+  const [submittingReview, setSubmittingReview] = useState(false);
 
   // Request Callback Modal State
   const [showCallbackModal, setShowCallbackModal] = useState(false);
@@ -105,10 +109,16 @@ export default function AdDetailsClient({
     const viewKey = `ji_viewed_ad_${ad.id}`;
     if (!sessionStorage.getItem(viewKey)) {
       sessionStorage.setItem(viewKey, '1');
-      fetch(`${API_URL}/ads/${ad.id}/view`, { method: 'POST' }).catch(() => {});
+      fetch(`${API_URL}/ads/${ad.id}/view`, { method: 'POST' })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => {
+          if (data?.views_count) setViewsCount(Number(data.views_count));
+        })
+        .catch(() => {});
     }
   }, [ad?.id]);
 
+  // Load user, saved wishlist state & reviews from PostgreSQL
   useEffect(() => {
     const storedUser = localStorage.getItem('ji_user');
     if (storedUser) {
@@ -130,10 +140,22 @@ export default function AdDetailsClient({
     syncSaved();
     window.addEventListener('ji_wishlist_updated', syncSaved);
 
-    try {
-      const allReviews = JSON.parse(localStorage.getItem('ji_reviews') || '{}');
-      setReviews(allReviews[String(ad.id)] || []);
-    } catch {}
+    fetch(`${API_URL}/ads/${ad.id}/reviews`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.reviews) {
+          setReviews(data.reviews);
+        } else {
+          const allReviews = JSON.parse(localStorage.getItem('ji_reviews') || '{}');
+          setReviews(allReviews[String(ad.id)] || []);
+        }
+      })
+      .catch(() => {
+        try {
+          const allReviews = JSON.parse(localStorage.getItem('ji_reviews') || '{}');
+          setReviews(allReviews[String(ad.id)] || []);
+        } catch {}
+      });
 
     return () => window.removeEventListener('ji_wishlist_updated', syncSaved);
   }, [ad.id]);
@@ -178,7 +200,7 @@ export default function AdDetailsClient({
       try {
         await navigator.share({
           title: `${ad.title} for ${formattedPrice} on ji.africa`,
-          text: `Check out this ad on ji.africa: ${ad.title}`,
+          text: `Check out this ad on ji.africa: ${ad.title} (${formattedPrice})`,
           url: adPageUrl,
         });
       } catch {}
@@ -222,9 +244,13 @@ export default function AdDetailsClient({
     e.preventDefault();
     setSendingReport(true);
     try {
+      const token = localStorage.getItem('ji_token');
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers.Authorization = `Bearer ${token}`;
+
       const res = await fetch(`${API_URL}/ads/${ad.id}/report`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           reason: reportReason,
           details: reportDetails.trim(),
@@ -244,29 +270,53 @@ export default function AdDetailsClient({
     }
   };
 
-  const handleSubmitReview = (e: React.FormEvent) => {
+  const handleSubmitReview = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUser || !comment.trim()) return;
+    setSubmittingReview(true);
 
-    const newReview = {
+    try {
+      const token = localStorage.getItem('ji_token');
+      if (token) {
+        const res = await fetch(`${API_URL}/ads/${ad.id}/reviews`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ rating, comment: comment.trim() }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.review) {
+            setReviews((prev) => [data.review, ...prev]);
+            setComment('');
+            setRating(5);
+            notify('Review published!');
+            setSubmittingReview(false);
+            return;
+          }
+        }
+      }
+    } catch {}
+
+    const fallbackReview = {
       name: currentUser.full_name,
       avatar: currentUser.profile_image,
       rating,
       comment: comment.trim(),
       date: new Date().toLocaleDateString('en-GB'),
     };
-
-    const updated = [newReview, ...reviews];
+    const updated = [fallbackReview, ...reviews];
     setReviews(updated);
     setComment('');
     setRating(5);
-
     try {
       const all = JSON.parse(localStorage.getItem('ji_reviews') || '{}');
       all[String(ad.id)] = updated;
       localStorage.setItem('ji_reviews', JSON.stringify(all));
     } catch {}
-
+    setSubmittingReview(false);
     notify('Review submitted successfully!');
   };
 
@@ -276,6 +326,12 @@ export default function AdDetailsClient({
   const whatsappLink = `https://wa.me/${formattedPhone.replace('+', '')}?text=${encodeURIComponent(
     whatsappMessage
   )}`;
+  const whatsappShareLink = `https://wa.me/?text=${encodeURIComponent(
+    `Check out *${ad.title}* for *${formatNaira(ad.price)}* in ${
+      ad.shop_address || 'Nigeria'
+    } on ji.africa:\n${adPageUrl}`
+  )}`;
+
   const isUnavailable =
     ad.status === 'Unavailable' || ad.status === 'unavailable' || ad.status === 'Sold';
 
@@ -283,6 +339,17 @@ export default function AdDetailsClient({
     setCurrentImageIndex((i) => (i - 1 + images.length) % images.length);
   const nextImage = () =>
     setCurrentImageIndex((i) => (i + 1) % images.length);
+
+  const specItems = [
+    { label: 'Condition', value: ad.condition || 'Used' },
+    ad.brand ? { label: 'Brand', value: ad.brand } : null,
+    ad.attributes?.model ? { label: 'Model', value: ad.attributes.model } : null,
+    ad.type ? { label: 'Type', value: ad.type } : null,
+    ad.subcategory ? { label: 'Subcategory', value: ad.subcategory } : null,
+    ad.sub_subcategory ? { label: 'Category Detail', value: ad.sub_subcategory } : null,
+    ad.delivery_option ? { label: 'Delivery', value: ad.delivery_option } : null,
+    { label: 'Negotiable', value: ad.is_negotiable ? 'Yes (Open to offers)' : 'Fixed Price' },
+  ].filter(Boolean) as { label: string; value: string }[];
 
   return (
     <div className="max-w-6xl mx-auto pb-12">
@@ -294,18 +361,33 @@ export default function AdDetailsClient({
       )}
 
       {/* Breadcrumbs */}
-      <div className="text-[11px] text-gray-500 font-semibold mb-4 flex items-center gap-2">
+      <div className="text-[11px] text-gray-500 font-semibold mb-4 flex flex-wrap items-center gap-1.5">
         <Link href="/" className="hover:text-brand-orange">
           Home
         </Link>
+        {ad.category_name && (
+          <>
+            <ChevronRight className="w-3 h-3" />
+            <Link href={`/?category=${ad.category_id}`} className="hover:text-brand-orange">
+              {ad.category_name}
+            </Link>
+          </>
+        )}
         {ad.subcategory && (
           <>
             <ChevronRight className="w-3 h-3" />
-            <span>{ad.subcategory}</span>
+            <Link
+              href={`/?category=${ad.category_id}&subcategory=${encodeURIComponent(ad.subcategory)}`}
+              className="hover:text-brand-orange"
+            >
+              {ad.subcategory}
+            </Link>
           </>
         )}
         <ChevronRight className="w-3 h-3" />
-        <span className="text-gray-800 truncate">{ad.title}</span>
+        <span className="text-gray-800 dark:text-gray-200 truncate max-w-[240px] sm:max-w-md">
+          {ad.title}
+        </span>
       </div>
 
       <div className="flex flex-col lg:flex-row gap-6">
@@ -318,6 +400,11 @@ export default function AdDetailsClient({
                 alt={ad.title}
                 className="w-full h-full object-contain"
               />
+              {ad.is_vip && (
+                <span className="absolute top-3 left-3 bg-amber-400 text-gray-950 font-black text-[10px] uppercase px-2.5 py-1 rounded shadow">
+                  {ad.vip_type || 'TOP'}
+                </span>
+              )}
               {images.length > 1 && (
                 <>
                   <button
@@ -357,7 +444,7 @@ export default function AdDetailsClient({
             )}
           </div>
 
-          {/* Mobile Sticky Price & Horizontal 3-Button Contact Bar (Directly Under Ad Image) */}
+          {/* Mobile Sticky Price & Horizontal 3-Button Contact Bar */}
           <div className="lg:hidden sticky top-[62px] z-30 bg-white/95 backdrop-blur rounded-xl border border-gray-200 p-3 shadow-md space-y-2.5">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-baseline gap-2 min-w-0">
@@ -384,6 +471,15 @@ export default function AdDetailsClient({
                     }`}
                   />
                 </button>
+                <a
+                  href={whatsappShareLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Share on WhatsApp"
+                  className="p-2 bg-[#25D366]/15 hover:bg-[#25D366]/25 text-[#128C7E] rounded-lg transition"
+                >
+                  <MessageCircle className="w-4 h-4" />
+                </a>
                 <button
                   type="button"
                   onClick={handleShare}
@@ -468,44 +564,45 @@ export default function AdDetailsClient({
 
           {/* Product Specifications & Description */}
           <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">{ad.title}</h2>
+            <div className="flex flex-wrap items-start justify-between gap-2 mb-3">
+              <h1 className="text-xl sm:text-2xl font-black text-gray-900">{ad.title}</h1>
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-gray-500 bg-gray-100 px-2.5 py-1 rounded-full shrink-0">
+                <Eye className="w-3.5 h-3.5 text-brand-orange" /> {viewsCount} views
+              </span>
+            </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-4 gap-x-6 mb-6 pt-4 border-t border-gray-100">
-              <div>
-                <p className="text-[10px] text-gray-500 uppercase font-bold">Condition</p>
-                <p className="text-sm font-semibold text-gray-800">
-                  {ad.condition || 'N/A'}
-                </p>
-              </div>
+            <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 mb-5">
+              <span className="inline-flex items-center gap-1 font-semibold text-gray-700">
+                <MapPin className="w-3.5 h-3.5 text-brand-orange" /> {ad.shop_address || 'Nigeria'}
+              </span>
               {ad.brand && (
-                <div>
-                  <p className="text-[10px] text-gray-500 uppercase font-bold">Brand</p>
-                  <p className="text-sm font-semibold text-gray-800">{ad.brand}</p>
-                </div>
-              )}
-              {ad.type && (
-                <div>
-                  <p className="text-[10px] text-gray-500 uppercase font-bold">Type</p>
-                  <p className="text-sm font-semibold text-gray-800">{ad.type}</p>
-                </div>
-              )}
-              {ad.attributes?.model && (
-                <div>
-                  <p className="text-[10px] text-gray-500 uppercase font-bold">Model</p>
-                  <p className="text-sm font-semibold text-gray-800">{ad.attributes.model}</p>
-                </div>
-              )}
-              {ad.delivery_option && (
-                <div>
-                  <p className="text-[10px] text-gray-500 uppercase font-bold">Delivery</p>
-                  <p className="text-sm font-semibold text-gray-800">
-                    {ad.delivery_option}
-                  </p>
-                </div>
+                <Link
+                  href={`/?category=${ad.category_id}&brand=${encodeURIComponent(ad.brand)}`}
+                  className="inline-flex items-center gap-1 bg-orange-50 text-brand-orange px-2.5 py-0.5 rounded-full font-bold hover:bg-orange-100 transition"
+                >
+                  <Tag className="w-3 h-3" /> {ad.brand}
+                </Link>
               )}
             </div>
 
-            <div className="border-t border-gray-100 pt-6">
+            {/* Structured Specification Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6 pt-4 border-t border-gray-100">
+              {specItems.map((spec) => (
+                <div
+                  key={spec.label}
+                  className="bg-gray-50 dark:bg-gray-800/70 border border-gray-100 dark:border-gray-700/80 rounded-lg p-3"
+                >
+                  <p className="text-[10px] text-gray-500 uppercase font-bold tracking-wide">
+                    {spec.label}
+                  </p>
+                  <p className="text-xs sm:text-sm font-bold text-gray-900 dark:text-gray-100 mt-0.5 truncate">
+                    {spec.value}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            <div className="border-t border-gray-100 pt-5">
               <h3 className="text-sm font-bold text-gray-800 mb-2">Description</h3>
               <p className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">
                 {ad.description}
@@ -513,7 +610,7 @@ export default function AdDetailsClient({
             </div>
 
             {ad.youtube_link && (
-              <div className="mt-6 border-t border-gray-100 pt-6">
+              <div className="mt-6 border-t border-gray-100 pt-5">
                 <a
                   href={
                     ad.youtube_link.startsWith('http')
@@ -530,7 +627,7 @@ export default function AdDetailsClient({
             )}
           </div>
 
-          {/* Buyer Reviews Section with Animated Click-to-Fill Stars */}
+          {/* Buyer Reviews Section */}
           <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
             <h3 className="text-lg font-bold text-gray-900 mb-4">
               Buyer Reviews ({reviews.length})
@@ -582,8 +679,10 @@ export default function AdDetailsClient({
                 ></textarea>
                 <button
                   type="submit"
-                  className="bg-gray-900 hover:bg-gray-800 text-white px-5 py-2.5 rounded-lg text-xs font-bold transition shadow-sm"
+                  disabled={submittingReview}
+                  className="bg-gray-900 hover:bg-gray-800 text-white px-5 py-2.5 rounded-lg text-xs font-bold transition shadow-sm inline-flex items-center gap-2 disabled:opacity-60"
                 >
+                  {submittingReview && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                   Submit Review
                 </button>
               </form>
@@ -606,7 +705,7 @@ export default function AdDetailsClient({
                 </p>
               ) : (
                 reviews.map((r, i) => (
-                  <div key={i} className="flex gap-3">
+                  <div key={r.id || i} className="flex gap-3">
                     <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center font-bold text-gray-600 shrink-0 overflow-hidden">
                       {r.avatar ? (
                         <img
@@ -700,25 +799,33 @@ export default function AdDetailsClient({
                 <PhoneCall className="w-4 h-4 text-brand-orange" /> Request Seller Callback
               </button>
 
-              <div className="grid grid-cols-2 gap-2.5 pt-1">
+              <div className="grid grid-cols-3 gap-2 pt-1">
                 <button
                   type="button"
                   onClick={handleToggleSave}
-                  className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition"
+                  className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1 shadow-sm transition"
                 >
                   <Heart
-                    className={`w-4 h-4 ${
+                    className={`w-3.5 h-3.5 ${
                       isSaved ? 'fill-brand-orange text-brand-orange' : ''
                     }`}
                   />{' '}
                   {isSaved ? 'Saved' : 'Save'}
                 </button>
+                <a
+                  href={whatsappShareLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#128C7E] py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1 shadow-sm transition"
+                >
+                  <MessageCircle className="w-3.5 h-3.5" /> Forward
+                </a>
                 <button
                   type="button"
                   onClick={handleShare}
-                  className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm transition"
+                  className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1 shadow-sm transition"
                 >
-                  <Share2 className="w-4 h-4" /> Share
+                  <Share2 className="w-3.5 h-3.5" /> Copy
                 </button>
               </div>
             </div>
