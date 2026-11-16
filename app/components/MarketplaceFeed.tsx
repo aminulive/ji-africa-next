@@ -403,7 +403,7 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
 
                   {/* Level 2 Subcategories */}
                   {isSelected && hasChildren && (
-                    <ul className="bg-gray-50/80 border-y border-gray-100 py-1">
+                    <ul className="bg-gray-50 dark:bg-gray-900/80 border-y border-gray-100 dark:border-gray-800 py-1">
                       {c.tree.map((l2: CategoryNode) => {
                         const isL2Active =
                           selectedSubcategory.toLowerCase() === l2.name.toLowerCase();
@@ -421,8 +421,8 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
                               }
                               className={`w-full flex items-center justify-between pl-9 pr-3 py-1.5 text-[11px] text-left transition ${
                                 isL2Active
-                                  ? 'text-brand-orange font-bold bg-orange-100/60'
-                                  : 'text-gray-600 hover:text-brand-orange'
+                                  ? 'text-brand-orange font-bold bg-orange-50 dark:bg-brand-orange/15'
+                                  : 'text-gray-600 dark:text-gray-300 hover:text-brand-orange'
                               }`}
                             >
                               <span className="truncate">{l2.name}</span>
@@ -433,7 +433,7 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
 
                             {/* Level 3 Sub-subcategories */}
                             {isL2Active && l2.children?.length > 0 && (
-                              <ul className="bg-white border-y border-gray-100 py-1">
+                              <ul className="bg-white dark:bg-gray-950/70 border-y border-gray-100 dark:border-gray-800 py-1">
                                 {l2.children.map((l3: CategoryNode) => {
                                   const isL3Active =
                                     selectedSubSubcategory.toLowerCase() ===
@@ -452,8 +452,8 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
                                         }
                                         className={`w-full flex items-center justify-between pl-12 pr-3 py-1.5 text-[11px] text-left transition ${
                                           isL3Active
-                                            ? 'text-brand-orange font-bold bg-orange-50'
-                                            : 'text-gray-500 hover:text-brand-orange'
+                                            ? 'text-brand-orange font-bold bg-orange-50 dark:bg-brand-orange/15'
+                                            : 'text-gray-500 dark:text-gray-400 hover:text-brand-orange'
                                         }`}
                                       >
                                         <span className="truncate">• {l3.name}</span>
@@ -464,7 +464,7 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
 
                                       {/* Level 4 Sub-sub-subcategories */}
                                       {isL3Active && l3.children?.length > 0 && (
-                                        <ul className="bg-orange-50/40 py-1">
+                                        <ul className="bg-gray-50 dark:bg-gray-900/60 py-1">
                                           {l3.children.map((l4: CategoryNode) => {
                                             const isL4Active =
                                               selectedLevel4.toLowerCase() ===
@@ -484,7 +484,7 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
                                                   className={`w-full pl-16 pr-3 py-1 text-[10px] text-left truncate transition ${
                                                     isL4Active
                                                       ? 'text-brand-orange font-black'
-                                                      : 'text-gray-500 hover:text-brand-orange'
+                                                      : 'text-gray-500 dark:text-gray-400 hover:text-brand-orange'
                                                   }`}
                                                 >
                                                   ↳ {l4.name}
@@ -721,7 +721,7 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
                           });
                         }
                       }}
-                      className="px-3 py-1.5 rounded-full text-xs font-bold bg-orange-50/80 hover:bg-brand-orange text-gray-800 hover:text-white border border-orange-200/80 transition shrink-0 inline-flex items-center gap-1"
+                      className="px-3 py-1.5 rounded-full text-xs font-bold bg-gray-100 dark:bg-gray-800 hover:bg-brand-orange dark:hover:bg-brand-orange text-gray-800 dark:text-gray-100 hover:text-white border border-gray-200 dark:border-gray-700 transition shrink-0 inline-flex items-center gap-1"
                     >
                       <span>{node.name}</span>
                       {hasDeeper && <ChevronRight className="w-3.5 h-3.5 opacity-75" />}
