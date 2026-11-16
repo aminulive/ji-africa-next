@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Heart, MapPin, BadgeCheck } from "lucide-react";
+import { Heart, MapPin, BadgeCheck, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 
 const API_URL = "https://ji-africa-backend.onrender.com/api";
@@ -129,6 +129,11 @@ export default function ProductCard({ ad }: { ad: any }) {
             {ad.title}
             {ad.seller_verified && (
               <BadgeCheck className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+            )}
+            {ad.ji_trust_enabled && (
+              <span className="inline-flex items-center gap-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 text-[9px] font-black uppercase px-1.5 py-0.5 rounded shrink-0">
+                <ShieldCheck className="w-2.5 h-2.5" /> JI Trust
+              </span>
             )}
           </h3>
           <p className="font-black text-brand-orange text-sm mt-auto">

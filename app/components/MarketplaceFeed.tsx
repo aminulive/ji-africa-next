@@ -16,6 +16,7 @@ import {
   ChevronRight,
   ChevronDown,
   ArrowLeft,
+  ShieldCheck,
 } from 'lucide-react';
 import HeroBanner from './HeroBanner';
 import ProductCard from './ProductCard';
@@ -98,6 +99,7 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
   const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
   const [conditionFilter, setConditionFilter] = useState('all');
+  const [jiTrustOnly, setJiTrustOnly] = useState(false);
   const [brandFilter, setBrandFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
   const [modelFilter, setModelFilter] = useState('');
@@ -130,6 +132,7 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
       minPrice ||
       maxPrice ||
       conditionFilter !== 'all' ||
+      jiTrustOnly ||
       brandFilter !== 'all' ||
       typeFilter !== 'all' ||
       modelFilter.trim()
@@ -337,6 +340,7 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
         if (minPrice) url.searchParams.append('min_price', minPrice);
         if (maxPrice) url.searchParams.append('max_price', maxPrice);
         if (conditionFilter !== 'all') url.searchParams.append('condition', conditionFilter);
+        if (jiTrustOnly) url.searchParams.append('ji_trust', '1');
         if (sortBy !== 'newest') url.searchParams.append('sort', sortBy);
 
         const res = await fetch(url.toString());
@@ -374,6 +378,7 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
       minPrice,
       maxPrice,
       conditionFilter,
+      jiTrustOnly,
       sortBy,
     ]
   );
@@ -400,6 +405,7 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
       const numericPrice = Number(a.price) || 0;
       if (minPrice && numericPrice < Number(minPrice)) return false;
       if (maxPrice && numericPrice > Number(maxPrice)) return false;
+      if (jiTrustOnly && !a.ji_trust_enabled) return false;
       if (conditionFilter !== 'all') {
         const adCond = (a.condition || '').toLowerCase();
         if (!adCond.includes(conditionFilter.toLowerCase())) return false;
@@ -434,7 +440,7 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
       return [...filtered].sort((a, b) => (Number(b.price) || 0) - (Number(a.price) || 0));
     }
     return filtered;
-  }, [ads, minPrice, maxPrice, conditionFilter, brandFilter, typeFilter, modelFilter, sortBy]);
+  }, [ads, minPrice, maxPrice, conditionFilter, jiTrustOnly, brandFilter, typeFilter, modelFilter, sortBy]);
 
   return (
     <div className="flex flex-col lg:flex-row gap-6">
@@ -636,6 +642,39 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
       {/* Main Feed Column */}
       <div className="flex-1 min-w-0">
         <HeroBanner />
+
+        {/* Quick Trust & Escrow Filter Strip */}
+        <div className="mb-4 bg-white rounded-xl border border-gray-200 px-3.5 py-2.5 shadow-2xs flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setJiTrustOnly(false)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                !jiTrustOnly
+                  ? 'bg-gray-900 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              All Listings
+            </button>
+            <button
+              type="button"
+              onClick={() => setJiTrustOnly((v) => !v)}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-black transition inline-flex items-center gap-1.5 border ${
+                jiTrustOnly
+                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                  : 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
+              }`}
+            >
+              <ShieldCheck className="w-3.5 h-3.5" /> JI Trust Protected Only
+            </button>
+          </div>
+          <span className="text-[11px] font-semibold text-gray-500">
+            {jiTrustOnly
+              ? `Showing ${visibleAds.length} escrow-protected item(s)`
+              : 'Filter by JI Trust for 100% escrow payment safety'}
+          </span>
+        </div>
 
         {/* Mobile Horizontal Category Circles */}
         <div className="block lg:hidden mb-4 -mx-4 px-4 sm:mx-0 sm:px-0">

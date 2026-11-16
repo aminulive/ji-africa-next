@@ -20,6 +20,7 @@ import {
   Calendar,
   Search,
   Globe,
+  ShieldCheck,
 } from "lucide-react";
 
 const API_URL = "https://ji-africa-backend.onrender.com/api";
@@ -131,6 +132,7 @@ function ShopContent() {
               shop_address: sampleAd.shop_address || "Nigeria",
               shop_description: sampleAd.seller_shop_description || "",
               is_verified: sampleAd.seller_verified || false,
+              ji_trust_enrolled: Boolean(sampleAd.ji_trust_enabled),
               profile_image: sampleAd.seller_image || null,
               shop_image: sampleAd.seller_shop_image || null,
             });
@@ -370,6 +372,11 @@ function ShopContent() {
                   <BadgeCheck className="w-3.5 h-3.5" /> Verified Seller
                 </span>
               )}
+              {(shopUser.ji_trust_enrolled || ads.some((a) => a.ji_trust_enabled)) && (
+                <span className="inline-flex items-center gap-1 bg-emerald-600 text-white px-3 py-1 rounded-full text-xs font-black shadow-xs">
+                  <ShieldCheck className="w-3.5 h-3.5" /> JI Trust Seller
+                </span>
+              )}
             </div>
 
             <div className="flex flex-wrap items-center gap-3 mt-1.5 text-xs font-semibold text-gray-500">
@@ -518,6 +525,11 @@ function ShopContent() {
                           {ad.title}
                           {shopUser.is_verified && (
                             <BadgeCheck className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                          )}
+                          {(shopUser.ji_trust_enrolled || ad.ji_trust_enabled) && (
+                            <span className="inline-flex items-center gap-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 text-[9px] font-black uppercase px-1.5 py-0.5 rounded shrink-0">
+                              <ShieldCheck className="w-2.5 h-2.5" /> JI Trust
+                            </span>
                           )}
                         </h3>
                         <p className="font-black text-brand-orange text-sm mt-auto">

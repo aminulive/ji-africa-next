@@ -13,6 +13,7 @@ import {
   Heart,
   Share2,
   ShieldAlert,
+  ShieldCheck,
   ChevronRight,
   ChevronLeft,
   ExternalLink,
@@ -74,6 +75,7 @@ export default function AdDetailsClient({
   const [offerNote, setOfferNote] = useState("");
   const [submittingOffer, setSubmittingOffer] = useState(false);
   const [showTrustModal, setShowTrustModal] = useState(false);
+  const [showTrustInfoModal, setShowTrustInfoModal] = useState(false);
   const [trustBuyerName, setTrustBuyerName] = useState("");
   const [trustBuyerPhone, setTrustBuyerPhone] = useState("");
   const [trustAddress, setTrustAddress] = useState("");
@@ -616,6 +618,25 @@ export default function AdDetailsClient({
                 <span className="truncate">Call Back</span>
               </button>
             </div>
+
+            {ad.ji_trust_enabled && !isUnavailable && !(currentUser && Number(currentUser.id || currentUser.userId || 0) > 0 && Number(currentUser.id || currentUser.userId) === Number(ad.user_id || ad.seller_id || ad.user?.id || 0)) && (
+              <div className="pt-1 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowTrustModal(true)}
+                  className="flex-1 py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-black shadow-xs flex items-center justify-center gap-1.5"
+                >
+                  <ShieldCheck className="w-4 h-4 shrink-0" /> Buy Safely with JI Trust
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowTrustInfoModal(true)}
+                  className="px-2.5 py-2.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-lg text-[11px] font-bold shrink-0"
+                >
+                  What is this?
+                </button>
+              </div>
+            )}
           </div>
 
           {isUnavailable ? (
@@ -885,14 +906,28 @@ export default function AdDetailsClient({
               >
                 <PhoneCall className="w-4 h-4 text-brand-orange" /> Request Seller Callback
               </button>
-                {ad.ji_trust_enabled && ad.status !== "Sold" && !(currentUser && Number(currentUser.id || currentUser.userId || 0) > 0 && Number(currentUser.id || currentUser.userId) === Number(ad.user_id || ad.seller_id || ad.user?.id || 0)) && (
-                  <button
-                    type="button"
-                    onClick={() => setShowTrustModal(true)}
-                    className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-sm transition flex items-center justify-center gap-1.5"
-                  >
-                    🛡️ Buy Safely with JI Trust (Escrow)
-                  </button>
+                {ad.ji_trust_enabled && !isUnavailable && (
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 space-y-2">
+                    {!(currentUser && Number(currentUser.id || currentUser.userId || 0) > 0 && Number(currentUser.id || currentUser.userId) === Number(ad.user_id || ad.seller_id || ad.user?.id || 0)) && (
+                      <button
+                        type="button"
+                        onClick={() => setShowTrustModal(true)}
+                        className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-sm transition flex items-center justify-center gap-1.5"
+                      >
+                        <ShieldCheck className="w-4 h-4" /> Buy Safely with JI Trust (Escrow)
+                      </button>
+                    )}
+                    <div className="flex items-center justify-between gap-2 text-[11px] text-emerald-900">
+                      <span className="font-semibold">100% Escrow Protected</span>
+                      <button
+                        type="button"
+                        onClick={() => setShowTrustInfoModal(true)}
+                        className="font-black text-emerald-700 underline hover:text-emerald-900"
+                      >
+                        What is JI Trust?
+                      </button>
+                    </div>
+                  </div>
                 )}
 
                 {ad.status === "Sold" ? (
@@ -966,6 +1001,11 @@ export default function AdDetailsClient({
                 {ad.seller_shop_name || ad.seller_name}
                 {ad.seller_verified && (
                   <BadgeCheck className="w-4 h-4 text-blue-500 shrink-0" />
+                )}
+                {ad.ji_trust_enabled && (
+                  <span className="inline-flex items-center gap-0.5 bg-emerald-600 text-white text-[9px] font-black uppercase px-1.5 py-0.5 rounded shrink-0">
+                    <ShieldCheck className="w-2.5 h-2.5" /> JI Trust
+                  </span>
                 )}
               </h3>
               <p className="text-[11px] text-gray-500 font-medium flex items-center gap-1 mt-0.5">
@@ -1318,6 +1358,56 @@ export default function AdDetailsClient({
                 {startingTrust ? "Securing Escrow..." : "Proceed to Fund JI Trust"}
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {showTrustInfoModal && (
+        <div className="fixed inset-0 bg-gray-900/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-md rounded-2xl overflow-hidden shadow-2xl border border-emerald-200 text-gray-900">
+            <div className="p-4 bg-emerald-900 text-white flex items-center justify-between">
+              <h3 className="font-black text-sm flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-emerald-300" /> What is JI Trust Escrow?
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowTrustInfoModal(false)}
+                className="text-emerald-200 hover:text-white text-xs font-bold px-2 py-1"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-5 space-y-3 text-xs text-gray-700 leading-relaxed">
+              <p>
+                <strong>JI Trust</strong> is <strong>ji.africa&apos;s</strong> official buyer &amp; seller escrow protection service. Because this seller accepts JI Trust, you do not have to risk sending money directly before receiving your item.
+              </p>
+              <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3.5 space-y-2">
+                <p><strong>Step 1 — Secure Payment:</strong> You fund JI Trust via Paystack. Your money is locked safely in escrow.</p>
+                <p><strong>Step 2 — Seller Dispatches:</strong> The seller ships or delivers your item and updates tracking.</p>
+                <p><strong>Step 3 — 72-Hour Inspection:</strong> Inspect your item upon arrival. Click <em>Confirm Receipt</em> to release payout to the seller, or open a dispute within 72 hours if there is any issue.</p>
+              </div>
+              <div className="flex items-center gap-2 pt-2">
+                {!(currentUser && Number(currentUser.id || currentUser.userId || 0) > 0 && Number(currentUser.id || currentUser.userId) === Number(ad.user_id || ad.seller_id || ad.user?.id || 0)) && !isUnavailable && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowTrustInfoModal(false);
+                      setShowTrustModal(true);
+                    }}
+                    className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-xs"
+                  >
+                    Buy Safely with JI Trust
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowTrustInfoModal(false)}
+                  className="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-bold text-xs"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
