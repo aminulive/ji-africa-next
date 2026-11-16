@@ -749,31 +749,32 @@ function SellFormContent() {
               />
             </label>
 
-            <label
-              onClick={() => setVipPlan('top')}
-              className={`block rounded-lg p-4 cursor-pointer flex justify-between items-center transition ${
-                vipPlan === 'top'
-                  ? 'border-2 border-amber-500 bg-amber-50'
-                  : 'border border-gray-200 hover:border-amber-500'
-              }`}
+            <div
+              aria-disabled="true"
+              className="block rounded-lg p-4 border border-gray-200 bg-gray-50 opacity-60 cursor-not-allowed select-none flex justify-between items-center"
             >
               <div>
-                <p className="font-bold text-gray-800 text-sm">
-                  TOP Promo <span className="text-xs text-amber-600">₦3,499</span>
+                <p className="font-bold text-gray-600 text-sm">
+                  TOP Promo <span className="text-xs text-gray-500">₦3,499</span>
                 </p>
-                <span className="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded font-bold">
-                  7 Days Boost
-                </span>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className="text-[10px] bg-gray-200 text-gray-700 px-2 py-0.5 rounded font-bold">
+                    7 Days Boost
+                  </span>
+                  <span className="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded font-bold">
+                    Coming Soon
+                  </span>
+                </div>
               </div>
               <input
                 type="radio"
                 name="post-vip"
                 value="top"
-                checked={vipPlan === 'top'}
-                onChange={() => setVipPlan('top')}
-                className="w-5 h-5 accent-brand-orange"
+                checked={false}
+                disabled
+                className="w-5 h-5 accent-gray-400 cursor-not-allowed"
               />
-            </label>
+            </div>
           </div>
         </div>
 
@@ -782,7 +783,7 @@ function SellFormContent() {
           disabled={loading}
           className="w-full py-4 bg-[#00b53f] hover:bg-[#009b36] text-white font-bold rounded-xl text-lg shadow-lg shadow-green-500/20 transition flex items-center justify-center disabled:opacity-70"
         >
-          {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : 'Next / Save Ad'}
+          {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : 'Save Ad'}
         </button>
       </form>
 

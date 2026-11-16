@@ -7,6 +7,10 @@ import GoogleAuthWrapper from "./components/GoogleAuthWrapper";
 export const metadata: Metadata = {
   title: "ji.africa - Nigeria's Fast Classifieds Marketplace",
   description: "Buy & Sell Clean Used Items Anywhere in Nigeria",
+  icons: {
+    icon: "/icon.svg",
+    apple: "/icon.svg",
+  },
 };
 
 export default function RootLayout({

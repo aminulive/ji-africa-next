@@ -55,6 +55,7 @@ export default function AdDetailsClient({
   const [isSaved, setIsSaved] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [toast, setToast] = useState('');
+  const [adPageUrl, setAdPageUrl] = useState(`https://www.ji.africa/ad/${ad.id}`);
 
   // Animated Click-to-Fill Star Reviews State
   const [reviews, setReviews] = useState<any[]>([]);
@@ -95,8 +96,11 @@ export default function AdDetailsClient({
     }
   }
 
-  // Record unique session view on backend
+  // Record unique session view & capture exact shareable ad URL
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setAdPageUrl(window.location.href);
+    }
     if (!ad?.id || typeof window === 'undefined') return;
     const viewKey = `ji_viewed_ad_${ad.id}`;
     if (!sessionStorage.getItem(viewKey)) {
@@ -175,11 +179,11 @@ export default function AdDetailsClient({
         await navigator.share({
           title: `${ad.title} for ${formattedPrice} on ji.africa`,
           text: `Check out this ad on ji.africa: ${ad.title}`,
-          url: window.location.href,
+          url: adPageUrl,
         });
       } catch {}
     } else if (typeof navigator !== 'undefined') {
-      navigator.clipboard.writeText(window.location.href);
+      navigator.clipboard.writeText(adPageUrl);
       notify('Link copied to clipboard!');
     }
   };
@@ -268,10 +272,12 @@ export default function AdDetailsClient({
 
   const formatNaira = (amount: number) => '₦' + Number(amount).toLocaleString('en-NG');
   const formattedPhone = formatPhoneNG(ad.seller_phone || '');
+  const whatsappMessage = `Hello, I saw your ad on ji.africa:\n*${ad.title}* (${formatNaira(ad.price)})\n${adPageUrl}`;
   const whatsappLink = `https://wa.me/${formattedPhone.replace('+', '')}?text=${encodeURIComponent(
-    `Hello, I saw your ad on ji.africa: "${ad.title}"`
+    whatsappMessage
   )}`;
-  const isUnavailable = ad.status === 'Unavailable' || ad.status === 'unavailable' || ad.status === 'Sold';
+  const isUnavailable =
+    ad.status === 'Unavailable' || ad.status === 'unavailable' || ad.status === 'Sold';
 
   const prevImage = () =>
     setCurrentImageIndex((i) => (i - 1 + images.length) % images.length);
@@ -303,8 +309,8 @@ export default function AdDetailsClient({
       </div>
 
       <div className="flex flex-col lg:flex-row gap-6">
-        {/* Left Column: Images, Specs & Animated Buyer Reviews */}
-        <div className="flex-1 space-y-6 min-w-0">
+        {/* Left Column: Images, Mobile Sticky Price/Actions, Specs & Buyer Reviews */}
+        <div className="flex-1 space-y-4 lg:space-y-6 min-w-0">
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
             <div className="relative bg-gray-950 aspect-[4/3] flex items-center justify-center group">
               <img
@@ -351,6 +357,89 @@ export default function AdDetailsClient({
             )}
           </div>
 
+          {/* Mobile Sticky Price & Horizontal 3-Button Contact Bar (Directly Under Ad Image) */}
+          <div className="lg:hidden sticky top-[62px] z-30 bg-white/95 backdrop-blur rounded-xl border border-gray-200 p-3 shadow-md space-y-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-baseline gap-2 min-w-0">
+                <span className="text-xl font-black text-gray-900 truncate">
+                  {formatNaira(ad.price)}
+                </span>
+                {ad.is_negotiable && (
+                  <span className="text-[10px] font-bold text-brand-orange bg-orange-50 px-2 py-0.5 rounded shrink-0">
+                    Negotiable
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={handleToggleSave}
+                  aria-label="Save Ad"
+                  className="p-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition"
+                >
+                  <Heart
+                    className={`w-4 h-4 ${
+                      isSaved ? 'fill-brand-orange text-brand-orange' : ''
+                    }`}
+                  />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleShare}
+                  aria-label="Share Ad"
+                  className="p-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition"
+                >
+                  <Share2 className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-1.5">
+              {showPhone && formattedPhone ? (
+                <a
+                  href={`tel:${formattedPhone}`}
+                  className="py-2 px-1.5 rounded-lg text-[11px] font-bold bg-gray-100 text-gray-900 border border-gray-200 flex items-center justify-center gap-1 truncate"
+                >
+                  <Phone className="w-3.5 h-3.5 text-brand-orange shrink-0" />
+                  <span className="truncate">{formattedPhone}</span>
+                </a>
+              ) : (
+                <button
+                  type="button"
+                  disabled={isUnavailable}
+                  onClick={() => setShowPhone(true)}
+                  className="py-2 px-1.5 rounded-lg text-[11px] font-bold bg-orange-50 hover:bg-orange-100 text-brand-orange border border-orange-200 flex items-center justify-center gap-1 transition disabled:opacity-50"
+                >
+                  <PhoneCall className="w-3.5 h-3.5 shrink-0" />
+                  <span className="truncate">Show Contact</span>
+                </button>
+              )}
+
+              <a
+                href={whatsappLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`py-2 px-1.5 rounded-lg text-[11px] font-bold bg-[#25D366] hover:bg-[#128C7E] text-white flex items-center justify-center gap-1 shadow-xs transition ${
+                  isUnavailable ? 'opacity-50 pointer-events-none' : ''
+                }`}
+              >
+                <MessageCircle className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">WhatsApp</span>
+              </a>
+
+              <button
+                type="button"
+                disabled={isUnavailable}
+                onClick={() => setShowCallbackModal(true)}
+                className="py-2 px-1.5 rounded-lg text-[11px] font-bold bg-gray-900 hover:bg-gray-800 text-white flex items-center justify-center gap-1 transition disabled:opacity-50"
+              >
+                <PhoneCall className="w-3.5 h-3.5 text-brand-orange shrink-0" />
+                <span className="truncate">Call Back</span>
+              </button>
+            </div>
+          </div>
+
           {isUnavailable ? (
             <div className="flex items-center gap-3 bg-red-50 border border-red-200 p-4 rounded-xl">
               <Slash className="w-6 h-6 text-red-600 shrink-0" />
@@ -370,7 +459,7 @@ export default function AdDetailsClient({
               </p>
               <Link
                 href="/sell"
-                className="bg-brand-orange hover:bg-orange-700 text-white px-5 py-2 rounded-lg text-xs font-bold shadow transition"
+                className="bg-brand-orange hover:bg-orange-700 text-white px-5 py-2 rounded-lg text-xs font-bold shadow transition shrink-0"
               >
                 Post ad like this
               </Link>
@@ -398,6 +487,12 @@ export default function AdDetailsClient({
                 <div>
                   <p className="text-[10px] text-gray-500 uppercase font-bold">Type</p>
                   <p className="text-sm font-semibold text-gray-800">{ad.type}</p>
+                </div>
+              )}
+              {ad.attributes?.model && (
+                <div>
+                  <p className="text-[10px] text-gray-500 uppercase font-bold">Model</p>
+                  <p className="text-sm font-semibold text-gray-800">{ad.attributes.model}</p>
                 </div>
               )}
               {ad.delivery_option && (
@@ -551,9 +646,9 @@ export default function AdDetailsClient({
           </div>
         </div>
 
-        {/* Right Column: Price, Contact, Callback, Seller Shop & Safety */}
+        {/* Right Column: Desktop Price/Contact Card + Seller Shop & Safety */}
         <div className="w-full lg:w-[360px] space-y-4 shrink-0">
-          <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm sticky top-20">
+          <div className="hidden lg:block bg-white rounded-xl border border-gray-200 p-6 shadow-sm sticky top-20">
             <h2 className="text-3xl font-black text-gray-900 mb-1">
               {formatNaira(ad.price)}
             </h2>
@@ -717,7 +812,8 @@ export default function AdDetailsClient({
             </div>
             <form onSubmit={handleRequestCallback} className="p-5 space-y-3.5">
               <p className="text-xs text-gray-500">
-                Leave your phone number and the seller of <span className="font-bold text-gray-800">{ad.title}</span> will call you back shortly.
+                Leave your phone number and the seller of{' '}
+                <span className="font-bold text-gray-800">{ad.title}</span> will call you back shortly.
               </p>
               <div>
                 <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1">
