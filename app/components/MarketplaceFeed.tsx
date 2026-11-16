@@ -21,6 +21,7 @@ import HeroBanner from './HeroBanner';
 import ProductCard from './ProductCard';
 import LocationModal from './LocationModal';
 import { CategoryIcon } from '../lib/categoryIcons';
+import { getCategorySpecConfig } from '../lib/categorySpecs';
 
 const API_URL = 'https://ji-africa-backend.onrender.com/api';
 
@@ -33,6 +34,15 @@ interface MarketplaceFeedProps {
   initialCategories: any[];
   initialAds: any[];
 }
+
+const PRICE_RANGE_PRESETS = [
+  { id: 'all', label: 'All Prices', min: '', max: '' },
+  { id: 'under50k', label: '< ₦50K', min: '', max: '50000' },
+  { id: '50k_150k', label: '₦50K – ₦150K', min: '50000', max: '150000' },
+  { id: '150k_500k', label: '₦150K – ₦500K', min: '150000', max: '500000' },
+  { id: '500k_2m', label: '₦500K – ₦2M', min: '500000', max: '2000000' },
+  { id: 'above2m', label: '> ₦2M', min: '2000000', max: '' },
+];
 
 function buildCategoryTree(cat: any): CategoryNode[] {
   if (Array.isArray(cat?.category_tree) && cat.category_tree.length > 0) {
@@ -84,10 +94,13 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
   const selectedSubSubcategory = searchParams.get('sub_subcategory') || '';
   const selectedLevel4 = searchParams.get('sub_sub_subcategory') || '';
 
-  // Refinement & Collapsible Inline Search States
+  // Refinement, Brand, Type, Model & Price Range States
   const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
   const [conditionFilter, setConditionFilter] = useState('all');
+  const [brandFilter, setBrandFilter] = useState('all');
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [modelFilter, setModelFilter] = useState('');
   const [sortBy, setSortBy] = useState<'newest' | 'price_asc' | 'price_desc'>('newest');
   const [showFilters, setShowFilters] = useState(false);
   const [inlineSearch, setInlineSearch] = useState(searchQuery);
@@ -95,6 +108,13 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
   useEffect(() => {
     setInlineSearch(searchQuery);
   }, [searchQuery]);
+
+  // Reset industry-specific brand/type/model when switching main category
+  useEffect(() => {
+    setBrandFilter('all');
+    setTypeFilter('all');
+    setModelFilter('');
+  }, [selectedCategory]);
 
   const hasLocationFilter = Boolean(
     regionId || subRegionId || (locationLabel && locationLabel !== 'All Nigeria')
@@ -109,7 +129,10 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
       selectedLevel4 ||
       minPrice ||
       maxPrice ||
-      conditionFilter !== 'all'
+      conditionFilter !== 'all' ||
+      brandFilter !== 'all' ||
+      typeFilter !== 'all' ||
+      modelFilter.trim()
   );
 
   const sortedCategories = useMemo(() => {
@@ -127,6 +150,19 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
     [sortedCategories, selectedCategory]
   );
 
+  const activeSpecConfig = useMemo(
+    () => getCategorySpecConfig(activeCatObj?.name),
+    [activeCatObj]
+  );
+
+  const availableModelsForFilter = useMemo(() => {
+    if (!brandFilter || brandFilter === 'all') return [];
+    const found = activeSpecConfig.brands.find(
+      (b) => b.name.toLowerCase() === brandFilter.toLowerCase()
+    );
+    return found ? found.models : [];
+  }, [activeSpecConfig, brandFilter]);
+
   const activeLevel2Node = useMemo(
     () =>
       activeCatObj?.tree.find(
@@ -143,7 +179,6 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
     [activeLevel2Node, selectedSubSubcategory]
   );
 
-  // Determine which child list to show in the drilldown bar
   const currentDrillOptions: {
     level: 2 | 3 | 4;
     parentLabel: string;
@@ -229,6 +264,9 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
         if (selectedLevel4) {
           url.searchParams.append('sub_sub_subcategory', selectedLevel4);
         }
+        if (brandFilter !== 'all') url.searchParams.append('brand', brandFilter);
+        if (typeFilter !== 'all') url.searchParams.append('type', typeFilter);
+        if (modelFilter.trim()) url.searchParams.append('model', modelFilter.trim());
         if (subRegionId) url.searchParams.append('sub_region_id', subRegionId);
         else if (regionId) url.searchParams.append('region_id', regionId);
         if (locationLabel && locationLabel !== 'All Nigeria') {
@@ -265,6 +303,9 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
       selectedSubcategory,
       selectedSubSubcategory,
       selectedLevel4,
+      brandFilter,
+      typeFilter,
+      modelFilter,
       regionId,
       subRegionId,
       locationLabel,
@@ -301,6 +342,26 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
         const adCond = (a.condition || '').toLowerCase();
         if (!adCond.includes(conditionFilter.toLowerCase())) return false;
       }
+      if (brandFilter !== 'all') {
+        const adBrand = (a.brand || '').toLowerCase();
+        const titleLow = (a.title || '').toLowerCase();
+        if (!adBrand.includes(brandFilter.toLowerCase()) && !titleLow.includes(brandFilter.toLowerCase())) {
+          return false;
+        }
+      }
+      if (typeFilter !== 'all') {
+        const adType = (a.type || '').toLowerCase();
+        const titleLow = (a.title || '').toLowerCase();
+        if (!adType.includes(typeFilter.toLowerCase()) && !titleLow.includes(typeFilter.toLowerCase())) {
+          return false;
+        }
+      }
+      if (modelFilter.trim()) {
+        const qModel = modelFilter.trim().toLowerCase();
+        const adModel = (a.attributes?.model || '').toLowerCase();
+        const titleLow = (a.title || '').toLowerCase();
+        if (!adModel.includes(qModel) && !titleLow.includes(qModel)) return false;
+      }
       return true;
     });
 
@@ -311,7 +372,7 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
       return [...filtered].sort((a, b) => (Number(b.price) || 0) - (Number(a.price) || 0));
     }
     return filtered;
-  }, [ads, minPrice, maxPrice, conditionFilter, sortBy]);
+  }, [ads, minPrice, maxPrice, conditionFilter, brandFilter, typeFilter, modelFilter, sortBy]);
 
   return (
     <div className="flex flex-col lg:flex-row gap-6">
@@ -392,13 +453,12 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
                       />
                       <span className="truncate">{c.name}</span>
                     </span>
-                    {hasChildren && (
-                      isSelected ? (
+                    {hasChildren &&
+                      (isSelected ? (
                         <ChevronDown className="w-3.5 h-3.5 shrink-0 text-brand-orange" />
                       ) : (
                         <ChevronRight className="w-3.5 h-3.5 shrink-0 text-gray-400" />
-                      )
-                    )}
+                      ))}
                   </button>
 
                   {/* Level 2 Subcategories */}
@@ -590,9 +650,9 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
           </div>
         </div>
 
-        {/* Interactive 4-Level Subcategory Drilldown Strip (Mobile & Desktop) */}
+        {/* Interactive 4-Level Subcategory Drilldown Strip + Top Brand Icon Cards */}
         {activeCatObj && (
-          <div className="mb-4 bg-white rounded-xl border border-gray-200 p-3 shadow-xs space-y-2.5">
+          <div className="mb-4 bg-white rounded-xl border border-gray-200 p-3 shadow-xs space-y-3">
             {/* Clickable Category Breadcrumb Trail */}
             <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-bold text-gray-500">
               <button
@@ -730,8 +790,98 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
                 })}
               </div>
             )}
+
+            {/* Clickable Top Brand Icon Cards */}
+            {activeSpecConfig.brands.length > 0 && (
+              <div className="pt-2 border-t border-gray-100 dark:border-gray-800">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[10px] font-bold uppercase text-gray-400">
+                    Top Brands in {activeCatObj.name}
+                  </span>
+                  {brandFilter !== 'all' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBrandFilter('all');
+                        setModelFilter('');
+                      }}
+                      className="text-[10px] font-bold text-brand-orange hover:underline"
+                    >
+                      Clear Brand
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center gap-2.5 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                  {activeSpecConfig.brands.map((b) => {
+                    const isBrandActive = brandFilter.toLowerCase() === b.name.toLowerCase();
+                    return (
+                      <button
+                        key={b.name}
+                        type="button"
+                        onClick={() => {
+                          if (isBrandActive) {
+                            setBrandFilter('all');
+                            setModelFilter('');
+                          } else {
+                            setBrandFilter(b.name);
+                            setModelFilter('');
+                          }
+                        }}
+                        className={`flex flex-col items-center gap-1.5 px-3 py-2 rounded-xl border transition shrink-0 min-w-[74px] ${
+                          isBrandActive
+                            ? 'border-brand-orange bg-orange-50 dark:bg-brand-orange/15 shadow-xs'
+                            : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/80 hover:border-brand-orange'
+                        }`}
+                      >
+                        <span
+                          className={`w-8 h-8 rounded-full ${b.bg} ${b.text} flex items-center justify-center font-black text-[10px] tracking-tight shadow-xs`}
+                        >
+                          {b.code}
+                        </span>
+                        <span
+                          className={`text-[10px] font-bold truncate max-w-[68px] ${
+                            isBrandActive
+                              ? 'text-brand-orange'
+                              : 'text-gray-700 dark:text-gray-200'
+                          }`}
+                        >
+                          {b.name}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
+
+        {/* Always-Visible Quick Price Range Pills */}
+        <div className="mb-3 flex items-center gap-2 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+          <span className="text-[10px] font-bold uppercase text-gray-400 shrink-0">
+            Budget:
+          </span>
+          {PRICE_RANGE_PRESETS.map((preset) => {
+            const isPresetActive = minPrice === preset.min && maxPrice === preset.max;
+            return (
+              <button
+                key={preset.id}
+                type="button"
+                onClick={() => {
+                  setMinPrice(preset.min);
+                  setMaxPrice(preset.max);
+                }}
+                className={`px-3 py-1.5 rounded-full text-xs font-bold border transition shrink-0 ${
+                  isPresetActive
+                    ? 'bg-brand-orange text-white border-brand-orange shadow-xs'
+                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-700 hover:border-brand-orange'
+                }`}
+              >
+                {preset.label}
+              </button>
+            );
+          })}
+        </div>
 
         {/* Active Search / Filter Badges */}
         {hasActiveFilters && (
@@ -784,9 +934,49 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
                 </button>
               </span>
             )}
+            {brandFilter !== 'all' && (
+              <span className="inline-flex items-center gap-1.5 bg-orange-50 text-brand-orange border border-orange-200 px-3 py-1 rounded-full text-xs font-bold">
+                Brand: {brandFilter}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBrandFilter('all');
+                    setModelFilter('');
+                  }}
+                  className="hover:text-orange-900"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </span>
+            )}
+            {typeFilter !== 'all' && (
+              <span className="inline-flex items-center gap-1.5 bg-orange-50 text-brand-orange border border-orange-200 px-3 py-1 rounded-full text-xs font-bold">
+                Type: {typeFilter}
+                <button
+                  type="button"
+                  onClick={() => setTypeFilter('all')}
+                  className="hover:text-orange-900"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </span>
+            )}
+            {modelFilter.trim() && (
+              <span className="inline-flex items-center gap-1.5 bg-orange-50 text-brand-orange border border-orange-200 px-3 py-1 rounded-full text-xs font-bold">
+                Model: {modelFilter.trim()}
+                <button
+                  type="button"
+                  onClick={() => setModelFilter('')}
+                  className="hover:text-orange-900"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </span>
+            )}
             {(minPrice || maxPrice) && (
               <span className="inline-flex items-center gap-1.5 bg-orange-50 text-brand-orange border border-orange-200 px-3 py-1 rounded-full text-xs font-bold">
-                Price: ₦{minPrice || '0'} – ₦{maxPrice || 'Any'}
+                Price: ₦{minPrice ? Number(minPrice).toLocaleString('en-NG') : '0'} –{' '}
+                {maxPrice ? `₦${Number(maxPrice).toLocaleString('en-NG')}` : 'Any'}
                 <button
                   type="button"
                   onClick={() => {
@@ -855,7 +1045,13 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
               type="button"
               onClick={() => setShowFilters((f) => !f)}
               className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-md border shadow-sm transition ${
-                showFilters || minPrice || maxPrice || conditionFilter !== 'all'
+                showFilters ||
+                minPrice ||
+                maxPrice ||
+                conditionFilter !== 'all' ||
+                brandFilter !== 'all' ||
+                typeFilter !== 'all' ||
+                modelFilter.trim()
                   ? 'bg-orange-50 border-brand-orange text-brand-orange'
                   : 'bg-white border-gray-200 text-gray-700 hover:border-brand-orange'
               }`}
@@ -884,9 +1080,84 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
           </div>
         </div>
 
-        {/* Collapsible Price, Condition & Sort Bar */}
+        {/* Collapsible Industry-Specific Type, Brand, Model, Condition & Price Bar */}
         {showFilters && (
           <div className="mb-4 bg-white p-3.5 rounded-xl border border-gray-200 shadow-sm grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <div>
+              <label className="block text-[10px] font-bold uppercase text-gray-400 mb-1">
+                Type
+              </label>
+              <select
+                value={typeFilter}
+                onChange={(e) => setTypeFilter(e.target.value)}
+                className="w-full px-2.5 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-orange"
+              >
+                <option value="all">All Types</option>
+                {activeSpecConfig.types.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-bold uppercase text-gray-400 mb-1">
+                Brand
+              </label>
+              <select
+                value={brandFilter}
+                onChange={(e) => {
+                  setBrandFilter(e.target.value);
+                  setModelFilter('');
+                }}
+                className="w-full px-2.5 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-orange"
+              >
+                <option value="all">All Brands</option>
+                {activeSpecConfig.brands.map((b) => (
+                  <option key={b.name} value={b.name}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-bold uppercase text-gray-400 mb-1">
+                Model
+              </label>
+              <input
+                list="ji-filter-models"
+                value={modelFilter}
+                onChange={(e) => setModelFilter(e.target.value)}
+                placeholder="Any model..."
+                className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-orange"
+              />
+              <datalist id="ji-filter-models">
+                {availableModelsForFilter.map((m) => (
+                  <option key={m} value={m} />
+                ))}
+              </datalist>
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-bold uppercase text-gray-400 mb-1">
+                Condition
+              </label>
+              <select
+                value={conditionFilter}
+                onChange={(e) => setConditionFilter(e.target.value)}
+                className="w-full px-2.5 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-orange"
+              >
+                <option value="all">All Conditions</option>
+                {activeSpecConfig.conditions.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div>
               <label className="block text-[10px] font-bold uppercase text-gray-400 mb-1">
                 Min Price (₦)
@@ -913,23 +1184,7 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
               />
             </div>
 
-            <div>
-              <label className="block text-[10px] font-bold uppercase text-gray-400 mb-1">
-                Condition
-              </label>
-              <select
-                value={conditionFilter}
-                onChange={(e) => setConditionFilter(e.target.value)}
-                className="w-full px-2.5 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none focus:border-brand-orange"
-              >
-                <option value="all">All Conditions</option>
-                <option value="Brand New">Brand New</option>
-                <option value="Foreign Used">Foreign Used (Tokunbo)</option>
-                <option value="Nigerian Used">Nigerian Used</option>
-              </select>
-            </div>
-
-            <div>
+            <div className="col-span-2">
               <label className="block text-[10px] font-bold uppercase text-gray-400 mb-1">
                 Sort By
               </label>

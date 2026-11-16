@@ -8,8 +8,11 @@ export const metadata: Metadata = {
   title: "ji.africa - Nigeria's Fast Classifieds Marketplace",
   description: "Buy & Sell Clean Used Items Anywhere in Nigeria",
   icons: {
-    icon: "/icon.svg",
-    apple: "/icon.svg",
+    icon: [
+      { url: "/icon?v=3", type: "image/png", sizes: "64x64" },
+    ],
+    shortcut: "/icon?v=3",
+    apple: "/icon?v=3",
   },
 };
 
@@ -21,6 +24,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <link rel="icon" href="/icon?v=3" type="image/png" />
         <script
           dangerouslySetInnerHTML={{
             __html: `
