@@ -783,7 +783,7 @@ export default function AdDetailsClient({
                   <div className="w-9 h-9 rounded-full bg-orange-50 dark:bg-orange-500/10 text-brand-orange flex items-center justify-center mb-1.5">
                     <Sparkles className="w-4 h-4" />
                   </div>
-                  <span className="text-xs font-semibold text-gray-800 dark:text-gray-200">
+                  <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
                     {ad.condition || 'Used'}
                   </span>
                 </div>
@@ -793,7 +793,7 @@ export default function AdDetailsClient({
                     <div className="w-9 h-9 rounded-full bg-orange-50 dark:bg-orange-500/10 text-brand-orange flex items-center justify-center mb-1.5">
                       <Truck className="w-4 h-4" />
                     </div>
-                    <span className="text-xs font-semibold text-gray-800 dark:text-gray-200">
+                    <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
                       {ad.delivery_option}
                     </span>
                   </div>
@@ -803,7 +803,7 @@ export default function AdDetailsClient({
                   <div className="w-9 h-9 rounded-full bg-orange-50 dark:bg-orange-500/10 text-brand-orange flex items-center justify-center mb-1.5">
                     <Tag className="w-4 h-4" />
                   </div>
-                  <span className="text-xs font-semibold text-gray-800 dark:text-gray-200">
+                  <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
                     {ad.is_negotiable ? 'Negotiable' : 'Fixed Price'}
                   </span>
                 </div>
@@ -824,10 +824,10 @@ export default function AdDetailsClient({
               <div className="grid grid-cols-2 gap-x-8 gap-y-4">
                 {specItems.map((spec) => (
                   <div key={spec.label} className="min-w-0">
-                    <p className="text-xs sm:text-sm font-bold text-gray-900 dark:text-gray-100 truncate">
+                    <p className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-slate-100 truncate">
                       {spec.value}
                     </p>
-                    <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-400 dark:text-gray-400 mt-0.5">
+                    <p className="text-[10px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400 mt-0.5">
                       {spec.label}
                     </p>
                   </div>
