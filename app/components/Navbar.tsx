@@ -36,6 +36,9 @@ function NavbarContent() {
   );
   const [showLocationModal, setShowLocationModal] = useState(false);
 
+  // Saved Wishlist Badge State
+  const [wishlistCount, setWishlistCount] = useState(0);
+
   // Notifications State
   const [notifications, setNotifications] = useState<any[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -90,6 +93,32 @@ function NavbarContent() {
     setLocationLabel(searchParams.get('location') || 'All Nigeria');
   }, [searchParams]);
 
+  const syncWishlistState = useCallback(async (fetchRemote = false) => {
+    try {
+      const localList = JSON.parse(localStorage.getItem("ji_wishlist") || "[]");
+      setWishlistCount(Array.isArray(localList) ? localList.length : 0);
+    } catch {
+      setWishlistCount(0);
+    }
+
+    const token = localStorage.getItem("ji_token");
+    if (!token || !fetchRemote) return;
+    try {
+      const res = await fetch(`${API_URL}/users/wishlist`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const ads = await res.json();
+        if (Array.isArray(ads)) {
+          const ids = ads.map((a: any) => String(a.id));
+          localStorage.setItem("ji_wishlist", JSON.stringify(ids));
+          setWishlistCount(ids.length);
+          window.dispatchEvent(new Event("ji_wishlist_updated"));
+        }
+      }
+    } catch {}
+  }, []);
+
   const fetchNotifications = useCallback(async () => {
     const token = localStorage.getItem('ji_token');
     if (!token) {
@@ -118,6 +147,7 @@ function NavbarContent() {
         try {
           setUser(JSON.parse(storedUser));
           fetchNotifications();
+          syncWishlistState(true);
         } catch {
           console.error('Failed to parse user session');
         }
@@ -125,13 +155,20 @@ function NavbarContent() {
         setUser(null);
         setNotifications([]);
         setUnreadCount(0);
+        syncWishlistState(false);
       }
     };
 
+    const onWishlistUpdated = () => syncWishlistState(false);
+
     syncUser();
     window.addEventListener('ji_user_updated', syncUser);
-    return () => window.removeEventListener('ji_user_updated', syncUser);
-  }, [fetchNotifications]);
+    window.addEventListener('ji_wishlist_updated', onWishlistUpdated);
+    return () => {
+      window.removeEventListener('ji_user_updated', syncUser);
+      window.removeEventListener('ji_wishlist_updated', onWishlistUpdated);
+    };
+  }, [fetchNotifications, syncWishlistState]);
 
   const handleMarkNotificationsRead = async (notifId?: number) => {
     const token = localStorage.getItem('ji_token');
@@ -322,10 +359,15 @@ function NavbarContent() {
 
               <Link
                 href="/wishlist"
-                className="text-gray-500 hover:text-brand-orange transition"
+                className="text-gray-500 hover:text-brand-orange transition relative flex items-center"
                 title="Saved Ads"
               >
                 <Heart className="w-[1.15rem] h-[1.15rem]" />
+                {wishlistCount > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 bg-brand-orange text-white text-[8px] font-bold min-w-[14px] h-3.5 px-1 rounded-full flex items-center justify-center border border-white">
+                    {wishlistCount > 9 ? "9+" : wishlistCount}
+                  </span>
+                )}
               </Link>
 
               <Link
@@ -345,7 +387,11 @@ function NavbarContent() {
                       router.push('/login');
                       return;
                     }
-                    setNotifOpen((prev) => !prev);
+                    setNotifOpen((prev) => {
+                      const next = !prev;
+                      if (next) fetchNotifications();
+                      return next;
+                    });
                     setMenuOpen(false);
                   }}
                   className="text-gray-500 hover:text-brand-orange transition relative flex items-center"

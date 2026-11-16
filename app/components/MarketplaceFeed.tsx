@@ -215,6 +215,57 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
   const [loadingFeed, setLoadingFeed] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [wishlistIds, setWishlistIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    const syncListWishlist = () => {
+      try {
+        setWishlistIds(JSON.parse(localStorage.getItem("ji_wishlist") || "[]").map(String));
+      } catch {
+        setWishlistIds([]);
+      }
+    };
+    syncListWishlist();
+    window.addEventListener("ji_wishlist_updated", syncListWishlist);
+    return () => window.removeEventListener("ji_wishlist_updated", syncListWishlist);
+  }, []);
+
+  const handleToggleListWishlist = (e: React.MouseEvent, adId: number | string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const user = localStorage.getItem("ji_user");
+    const token = localStorage.getItem("ji_token");
+    if (!user) {
+      router.push("/login");
+      return;
+    }
+    const strId = String(adId);
+    const exists = wishlistIds.includes(strId);
+    const next = exists ? wishlistIds.filter((id) => id !== strId) : [...wishlistIds, strId];
+    setWishlistIds(next);
+    localStorage.setItem("ji_wishlist", JSON.stringify(next));
+    window.dispatchEvent(new Event("ji_wishlist_updated"));
+
+    if (token) {
+      fetch("https://ji-africa-backend.onrender.com/api/users/wishlist/toggle", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ ad_id: Number(adId) }),
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => {
+          if (Array.isArray(data?.wishlistIds)) {
+            setWishlistIds(data.wishlistIds);
+            localStorage.setItem("ji_wishlist", JSON.stringify(data.wishlistIds));
+            window.dispatchEvent(new Event("ji_wishlist_updated"));
+          }
+        })
+        .catch(() => {});
+    }
+  };
   const [showLocationModal, setShowLocationModal] = useState(false);
 
   const updateUrlParams = useCallback(
@@ -1224,11 +1275,17 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
                   >
                     <button
                       type="button"
-                      onClick={(e) => e.preventDefault()}
+                      onClick={(e) => handleToggleListWishlist(e, ad.id)}
                       className="absolute top-3 right-3 p-1.5 bg-white/80 backdrop-blur rounded-full shadow-sm hover:text-brand-orange transition z-10"
-                      title="Save Ad"
+                      title={wishlistIds.includes(String(ad.id)) ? "Remove from Saved Ads" : "Save Ad"}
                     >
-                      <Heart className="w-4 h-4 text-gray-500" />
+                      <Heart
+                        className={`w-4 h-4 transition ${
+                          wishlistIds.includes(String(ad.id))
+                            ? "fill-brand-orange text-brand-orange"
+                            : "text-gray-500"
+                        }`}
+                      />
                     </button>
 
                     <div className="relative w-32 md:w-48 bg-gray-100 overflow-hidden shrink-0">
