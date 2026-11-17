@@ -49,6 +49,21 @@ async function fetchSingleAd(id: string) {
   return null;
 }
 
+export async function generateStaticParams() {
+  try {
+    const res = await fetch(`${API_URL}/ads?page=1&limit=30`, {
+      next: { revalidate: 300 },
+    });
+    if (!res.ok) return [{ id: "1" }];
+    const data = await res.json();
+    const list = Array.isArray(data?.ads) ? data.ads : [];
+    if (list.length === 0) return [{ id: "1" }];
+    return list.map((ad: any) => ({ id: String(ad.id) }));
+  } catch {
+    return [{ id: "1" }];
+  }
+}
+
 export async function generateMetadata({
   params,
 }: {

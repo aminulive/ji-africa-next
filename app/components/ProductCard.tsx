@@ -120,7 +120,7 @@ export default function ProductCard({ ad }: { ad: any }) {
         />
       </button>
 
-      <Link href={`/ad/${ad.id}`} onClick={() => recordRecentlyViewedAd(ad)} className="flex flex-col h-full">
+      <Link href={`/ad/${ad.id}`} prefetch={false} onClick={() => recordRecentlyViewedAd(ad)} className="flex flex-col h-full">
         <div className="relative aspect-[4/3] sm:aspect-square bg-gray-100 overflow-hidden">
           <img src={optimizeCardImg(imageUrl)}
             alt={ad.title}
