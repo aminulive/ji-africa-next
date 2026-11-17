@@ -1454,62 +1454,7 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
       </div>
       </div>
 
-            {recentlyViewed.length > 0 && (
-        <div className="mt-8 bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-xs font-black uppercase tracking-wider text-gray-800">
-              Recently Viewed Ads
-            </h3>
-            <button
-              type="button"
-              onClick={() => {
-                localStorage.removeItem("ji_recently_viewed");
-                setRecentlyViewed([]);
-              }}
-              className="text-[11px] font-bold text-gray-400 hover:text-gray-700"
-            >
-              Clear
-            </button>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
-            {recentlyViewed.map((rv) => {
-              let thumb = "https://placehold.co/240x180/f8fafc/94a3b8?text=Ad";
-              try {
-                const parsed = JSON.parse(rv.image);
-                const first = Array.isArray(parsed) ? parsed[0] : rv.image;
-                if (first) thumb = first.startsWith("http") ? first : `https://ji-africa-backend.onrender.com${first}`;
-              } catch {
-                if (typeof rv.image === "string" && rv.image) {
-                  thumb = rv.image.startsWith("http") ? rv.image : `https://ji-africa-backend.onrender.com${rv.image}`;
-                }
-              }
-              return (
-                <Link
-                  key={rv.id}
-                  href={`/ad/${rv.id}`}
-                  className="group border border-gray-100 rounded-xl overflow-hidden hover:border-brand-orange transition bg-gray-50/50"
-                >
-                  <div className="h-24 bg-gray-100 overflow-hidden">
-                    <img
-                      src={thumb}
-                      alt={rv.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition"
-                    />
-                  </div>
-                  <div className="p-2">
-                    <p className="text-[11px] font-bold text-gray-800 truncate">{rv.title}</p>
-                    <p className="text-xs font-black text-brand-orange mt-0.5">
-                      ₦{Number(rv.price || 0).toLocaleString("en-NG")}
-                    </p>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      <LocationModal
+            <LocationModal
         isOpen={showLocationModal}
         onClose={() => setShowLocationModal(false)}
         onSelectLocation={({ regionId: rId, subRegionId: srId, label }) => {
