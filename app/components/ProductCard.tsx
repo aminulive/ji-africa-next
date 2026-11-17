@@ -106,7 +106,7 @@ export default function ProductCard({ ad }: { ad: any }) {
       >
         <Heart
           className={`w-4 h-4 transition ${
-            isSaved ? "fill-brand-orange text-brand-orange" : "text-gray-500"
+            isSaved ? "fill-brand-orange text-brand-orange" : "text-gray-600"
           }`}
         />
       </button>
@@ -139,10 +139,10 @@ export default function ProductCard({ ad }: { ad: any }) {
           <p className="font-black text-brand-orange text-sm mt-auto">
             ₦{Number(ad.price).toLocaleString("en-NG")}
           </p>
-          <p className="text-[9px] text-gray-500 line-clamp-2 mt-1 leading-tight">
+          <p className="text-[9px] text-gray-600 line-clamp-2 mt-1 leading-tight">
             {ad.description}
           </p>
-          <div className="mt-2 pt-1.5 border-t border-gray-100 flex items-center text-[9px] text-gray-400 font-medium">
+          <div className="mt-2 pt-1.5 border-t border-gray-100 flex items-center text-[9px] text-gray-600 font-medium">
             <span className="flex items-center gap-0.5">
               <MapPin className="w-3 h-3" /> {ad.shop_address || "Nigeria"}
             </span>

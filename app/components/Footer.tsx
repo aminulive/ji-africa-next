@@ -3,7 +3,7 @@ import { Globe, Share2, MessageCircle } from 'lucide-react';
 
 export default function Footer() {
   return (
-    <footer className="bg-gray-900 text-gray-400 mt-auto border-t border-gray-800">
+    <footer className="bg-gray-900 text-gray-300 mt-auto border-t border-gray-800">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-14">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6 lg:gap-12">
           <div className="col-span-2 md:col-span-2">
@@ -12,7 +12,7 @@ export default function Footer() {
                 ji<span className="text-white">.africa</span>
               </span>
             </Link>
-            <p className="text-xs sm:text-sm text-gray-500 mb-4 leading-relaxed max-w-md">
+            <p className="text-xs sm:text-sm text-gray-300 mb-4 leading-relaxed max-w-md">
               Nigeria&apos;s simplest, fastest, and most direct classified ads platform. Buy &amp; sell directly via WhatsApp with zero hassle.
             </p>
             <div className="flex gap-3">
@@ -99,7 +99,7 @@ export default function Footer() {
 
         <div className="mt-8 pt-6 border-t border-gray-800 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs">
           <p>&copy; 2026 JI AFRICA LIMITED. Built for Nigeria. 🇳🇬</p>
-          <p className="text-gray-500">Lightweight • Ultra-Fast • WhatsApp Direct</p>
+          <p className="text-gray-300">Lightweight • Ultra-Fast • WhatsApp Direct</p>
         </div>
       </div>
     </footer>

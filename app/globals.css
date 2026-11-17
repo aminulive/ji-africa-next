@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 @theme {
-  --color-brand-orange: #EA580C;
+  --color-brand-orange: #C2410C;
   --color-brand-dark: #111827;
   --color-brand-bg: #F9FAFB;
 }
@@ -97,3 +97,9 @@ html:not(.dark) .ji-spec-label {
 html.dark .ji-spec-label {
   color: #9ca3af !important;
 }
+
+/* High-Contrast Brand Orange & Muted Text Accessibility Overrides */
+.bg-brand-orange { background-color: #C2410C !important; }
+.text-brand-orange { color: #C2410C !important; }
+.border-brand-orange { border-color: #C2410C !important; }
+html.dark .text-brand-orange { color: #FB923C !important; }

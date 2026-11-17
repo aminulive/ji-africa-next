@@ -849,7 +849,7 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
             {/* Next-Level Subcategory Pills */}
             {currentDrillOptions && currentDrillOptions.nodes.length > 0 && (
               <div className="flex items-center gap-2 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-                <span className="text-[10px] font-bold uppercase text-gray-400 shrink-0">
+                <span className="text-[10px] font-extrabold uppercase text-gray-600 shrink-0">
                   {currentDrillOptions.parentLabel}:
                 </span>
                 {currentDrillOptions.nodes.map((node) => {
