@@ -1139,6 +1139,7 @@ function SellerDashboardContent() {
       {whatsappShareAd && (
         <WhatsAppShareFlyerModal
           ad={whatsappShareAd}
+          sellerPhoneFallback={user?.phone || ''}
           onClose={() => setWhatsappShareAd(null)}
         />
       )}

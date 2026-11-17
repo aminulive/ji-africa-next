@@ -24,9 +24,11 @@ function getFirstImage(imageField: any): string {
 
 export default function WhatsAppShareFlyerModal({
   ad,
+  sellerPhoneFallback,
   onClose,
 }: {
   ad: any;
+  sellerPhoneFallback?: string;
   onClose: () => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -37,11 +39,13 @@ export default function WhatsAppShareFlyerModal({
   const adUrl = `https://www.ji.africa/ad/${ad.id}`;
   const formattedPrice = "₦" + Number(ad.price || 0).toLocaleString("en-NG");
   const locationText = ad.shop_address || "Nigeria";
+  const sellerPhone = String(ad.seller_phone || sellerPhoneFallback || "").trim();
 
   const whatsappGroupCaption = [
     `🔥 *${ad.title}*`,
     `💰 *Price:* ${formattedPrice}${ad.is_negotiable ? " (Negotiable)" : ""}`,
     `📍 *Location:* ${locationText}`,
+    sellerPhone ? `📞 *Call / WhatsApp:* ${sellerPhone}` : "",
     ad.ji_trust_enabled ? "🛡️ *JI Trust Escrow Protected* (Pay safely on delivery)" : "",
     `🔗 *View Photos & Order Here:* ${adUrl}`,
   ]
@@ -64,46 +68,46 @@ export default function WhatsAppShareFlyerModal({
       canvas.width = W;
       canvas.height = H;
 
-      // Brand Espresso/Charcoal Gradient Background
+      // Crisp Dark Slate/Charcoal Background (Zero Brown Tones)
       const bgGrad = ctx.createLinearGradient(0, 0, 0, H);
-      bgGrad.addColorStop(0, "#1C130E");
-      bgGrad.addColorStop(0.55, "#241812");
-      bgGrad.addColorStop(1, "#120C09");
+      bgGrad.addColorStop(0, "#111827");
+      bgGrad.addColorStop(0.55, "#1F2937");
+      bgGrad.addColorStop(1, "#0B0F19");
       ctx.fillStyle = bgGrad;
       ctx.fillRect(0, 0, W, H);
 
-      // Top Brand Header Bar
-      ctx.fillStyle = "#B85231";
+      // Top Brand Header Bar (Platform Brand Orange #EA580C)
+      ctx.fillStyle = "#EA580C";
       ctx.beginPath();
-      ctx.roundRect(70, 80, 110, 110, 24);
+      ctx.roundRect(70, 72, 108, 108, 24);
       ctx.fill();
 
       ctx.fillStyle = "#FFFFFF";
       ctx.font = "900 64px sans-serif";
-      ctx.fillText("ji", 96, 158);
+      ctx.fillText("ji", 96, 148);
 
-      ctx.fillStyle = "#FAF6F0";
+      ctx.fillStyle = "#FFFFFF";
       ctx.font = "900 54px sans-serif";
-      ctx.fillText(".africa", 196, 156);
+      ctx.fillText(".africa", 196, 146);
 
       // JI Trust Badge Pill (Top Right)
       if (ad.ji_trust_enabled) {
         ctx.fillStyle = "#059669";
         ctx.beginPath();
-        ctx.roundRect(620, 95, 390, 76, 38);
+        ctx.roundRect(620, 88, 390, 76, 38);
         ctx.fill();
         ctx.fillStyle = "#FFFFFF";
         ctx.font = "800 28px sans-serif";
-        ctx.fillText("🛡️ JI TRUST PROTECTED", 655, 143);
+        ctx.fillText("🛡️ JI TRUST PROTECTED", 655, 136);
       }
 
       // Product Photo Frame
       const imgX = 70;
-      const imgY = 240;
+      const imgY = 220;
       const imgW = 940;
-      const imgH = 940;
+      const imgH = 880;
 
-      ctx.fillStyle = "#2E2019";
+      ctx.fillStyle = "#374151";
       ctx.beginPath();
       ctx.roundRect(imgX, imgY, imgW, imgH, 36);
       ctx.fill();
@@ -136,25 +140,25 @@ export default function WhatsAppShareFlyerModal({
         } catch {}
       }
 
-      // Price Badge Overlay
-      ctx.fillStyle = "#B85231";
+      // Price Badge Overlay (Platform Brand Orange #EA580C)
+      ctx.fillStyle = "#EA580C";
       ctx.beginPath();
-      ctx.roundRect(70, 1230, 940, 145, 28);
+      ctx.roundRect(70, 1140, 940, 136, 28);
       ctx.fill();
 
       ctx.fillStyle = "#FFFFFF";
-      ctx.font = "900 72px sans-serif";
-      ctx.fillText(formattedPrice, 110, 1326);
+      ctx.font = "900 70px sans-serif";
+      ctx.fillText(formattedPrice, 110, 1230);
 
       if (ad.is_negotiable) {
-        ctx.fillStyle = "#FDE68A";
-        ctx.font = "800 30px sans-serif";
-        ctx.fillText("NEGOTIABLE", 760, 1316);
+        ctx.fillStyle = "#FEF08A";
+        ctx.font = "800 28px sans-serif";
+        ctx.fillText("NEGOTIABLE", 765, 1220);
       }
 
       // Advert Title (up to 2 lines)
-      ctx.fillStyle = "#FAF6F0";
-      ctx.font = "800 48px sans-serif";
+      ctx.fillStyle = "#FFFFFF";
+      ctx.font = "900 48px sans-serif";
       const words = String(ad.title || "Item for Sale").split(" ");
       let line1 = "";
       let line2 = "";
@@ -165,25 +169,44 @@ export default function WhatsAppShareFlyerModal({
           line2 = (line2 + " " + w).trim();
         }
       }
-      ctx.fillText(line1, 75, 1455);
-      if (line2) ctx.fillText(line2, 75, 1518);
+      ctx.fillText(line1, 75, 1352);
+      if (line2) ctx.fillText(line2, 75, 1412);
 
       // Location & Condition
-      ctx.fillStyle = "#EADCC9";
-      ctx.font = "600 34px sans-serif";
-      ctx.fillText(`📍 ${locationText}   •   ${ad.condition || "Available"}`, 75, 1595);
+      ctx.fillStyle = "#D1D5DB";
+      ctx.font = "700 32px sans-serif";
+      ctx.fillText(`📍 ${locationText}   •   ${ad.condition || "Available"}`, 75, 1482);
+
+      // Bold Seller Phone Callout Banner
+      if (sellerPhone) {
+        ctx.fillStyle = "#1E293B";
+        ctx.strokeStyle = "#EA580C";
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.roundRect(70, 1525, 940, 108, 24);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = "#FB923C";
+        ctx.font = "800 26px sans-serif";
+        ctx.fillText("CALL / WHATSAPP SELLER:", 110, 1570);
+
+        ctx.fillStyle = "#FFFFFF";
+        ctx.font = "900 44px sans-serif";
+        ctx.fillText(`📞 ${sellerPhone}`, 110, 1616);
+      }
 
       // Bottom Call-To-Action Strip
       ctx.fillStyle = "#25D366";
       ctx.beginPath();
-      ctx.roundRect(70, 1670, 940, 140, 28);
+      ctx.roundRect(70, 1670, 940, 145, 28);
       ctx.fill();
 
-      ctx.fillStyle = "#062E16";
+      ctx.fillStyle = "#052E16";
+      ctx.font = "900 32px sans-serif";
+      ctx.fillText("ORDER SAFELY ON JI.AFRICA:", 110, 1732);
       ctx.font = "900 34px sans-serif";
-      ctx.fillText("ORDER SAFELY ON JI.AFRICA:", 110, 1730);
-      ctx.font = "800 32px sans-serif";
-      ctx.fillText(adUrl.replace("https://www.", ""), 110, 1780);
+      ctx.fillText(adUrl.replace("https://www.", ""), 110, 1784);
 
       if (!cancelled) {
         try {
@@ -196,7 +219,7 @@ export default function WhatsAppShareFlyerModal({
     return () => {
       cancelled = true;
     };
-  }, [ad, adUrl, formattedPrice, locationText]);
+  }, [ad, adUrl, formattedPrice, locationText, sellerPhone]);
 
   const handleDownloadFlyer = () => {
     if (!flyerDataUrl) return;
@@ -241,10 +264,9 @@ export default function WhatsAppShareFlyerModal({
         </div>
 
         <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-5 items-center max-h-[82vh] overflow-y-auto">
-          {/* Left: WhatsApp Status Flyer Preview */}
           <div className="flex flex-col items-center">
             <canvas ref={canvasRef} className="hidden" />
-            <div className="w-48 aspect-[9/16] rounded-2xl overflow-hidden border-2 border-gray-200 shadow-lg bg-[#1C130E] flex items-center justify-center">
+            <div className="w-48 aspect-[9/16] rounded-2xl overflow-hidden border-2 border-gray-200 shadow-lg bg-gray-900 flex items-center justify-center">
               {flyerDataUrl ? (
                 <img
                   src={flyerDataUrl}
@@ -252,20 +274,19 @@ export default function WhatsAppShareFlyerModal({
                   className="w-full h-full object-cover"
                 />
               ) : (
-                <span className="text-xs text-amber-100 font-bold">Generating Flyer...</span>
+                <span className="text-xs text-orange-200 font-bold">Generating Flyer...</span>
               )}
             </div>
             <button
               type="button"
               onClick={handleDownloadFlyer}
               disabled={!flyerDataUrl}
-              className="mt-3 w-full max-w-[210px] py-2.5 px-3 bg-gray-900 hover:bg-gray-800 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 shadow transition disabled:opacity-50"
+              className="mt-3 w-full max-w-[210px] py-2.5 px-3 bg-brand-orange hover:bg-orange-700 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1.5 shadow transition disabled:opacity-50"
             >
-              <Download className="w-3.5 h-3.5 text-brand-orange" /> Download Status Flyer
+              <Download className="w-3.5 h-3.5" /> Download Status Flyer
             </button>
           </div>
 
-          {/* Right: Pre-Formatted WhatsApp Group Caption & Direct Share */}
           <div className="space-y-3.5 text-xs">
             <div>
               <label className="block text-[10px] font-black uppercase tracking-wider text-gray-500 mb-1">
@@ -273,7 +294,7 @@ export default function WhatsAppShareFlyerModal({
               </label>
               <textarea
                 readOnly
-                rows={6}
+                rows={7}
                 value={whatsappGroupCaption}
                 className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-800 font-medium leading-relaxed outline-none"
               />
