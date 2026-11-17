@@ -103,3 +103,27 @@ html.dark .ji-spec-label {
 .text-brand-orange { color: #C2410C !important; }
 .border-brand-orange { border-color: #C2410C !important; }
 html.dark .text-brand-orange { color: #FB923C !important; }
+
+/* Light Mode Clean Surface Polish */
+html:not(.dark) .ji-light-pill {
+  background-color: #ffffff !important;
+  color: #1f2937 !important;
+  border-color: #e5e7eb !important;
+}
+html:not(.dark) .ji-light-pill:hover {
+  background-color: #fff7ed !important;
+  border-color: #fdba74 !important;
+  color: #c2410c !important;
+}
+html:not(.dark) .ji-light-drawer {
+  background-color: #f9fafb !important;
+  border-top: 1px solid #f3f4f6 !important;
+  border-bottom: 1px solid #f3f4f6 !important;
+}
+html:not(.dark) .ji-light-drawer-item {
+  color: #374151 !important;
+}
+html:not(.dark) .ji-light-drawer-item:hover {
+  background-color: #fff7ed !important;
+  color: #c2410c !important;
+}
