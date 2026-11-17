@@ -24,6 +24,8 @@ import {
   ChevronRight,
   ChevronDown,
   Megaphone,
+  Send,
+  Download,
 } from 'lucide-react';
 
 const API_URL = 'https://ji-africa-backend.onrender.com/api';
@@ -47,9 +49,28 @@ function getAdThumb(ad: any) {
 export default function AdminDashboardPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<
-    'moderation' | 'users' | 'trust' | 'reviews' | 'categories' | 'blog' | 'messages' | 'requests'
+    'moderation' | 'users' | 'trust' | 'reviews' | 'categories' | 'blog' | 'messages' | 'requests' | 'newsletter'
   >('moderation');
   const [adminBuyerRequests, setAdminBuyerRequests] = useState<any[]>([]);
+  const [newsletterData, setNewsletterData] = useState<{
+    stats: { totalActive: number; fromSignup: number; fromFooter: number; verifiedSellers: number };
+    subscribers: any[];
+    campaigns: any[];
+    hotDeals: any[];
+  }>({
+    stats: { totalActive: 0, fromSignup: 0, fromFooter: 0, verifiedSellers: 0 },
+    subscribers: [],
+    campaigns: [],
+    hotDeals: [],
+  });
+  const [campaignSubject, setCampaignSubject] = useState("This Week's Hot Deals on ji.africa");
+  const [campaignIntro, setCampaignIntro] = useState(
+    "Hello from ji.africa!\n\nHere are the top trending and verified deals across Nigeria this week. Tap any item below to message the seller directly on WhatsApp or pay safely with JI Trust Escrow:"
+  );
+  const [campaignSegment, setCampaignSegment] = useState<'all' | 'verified_sellers' | 'buyers'>('all');
+  const [includeHotDeals, setIncludeHotDeals] = useState(true);
+  const [testRecipientEmail, setTestRecipientEmail] = useState('');
+  const [sendingCampaign, setSendingCampaign] = useState(false);
   const [trustOrders, setTrustOrders] = useState<any[]>([]);
   const [trustSellers, setTrustSellers] = useState<any[]>([]);
   const [adminReviews, setAdminReviews] = useState<any[]>([]);
@@ -144,7 +165,7 @@ export default function AdminDashboardPage() {
 
     try {
       const headers = getAuthHeaders();
-      const [statsRes, adsRes, usersRes, catsRes, blogRes, msgRes, revRes, trustRes, reqRes] = await Promise.all([
+      const [statsRes, adsRes, usersRes, catsRes, blogRes, msgRes, revRes, trustRes, reqRes, newsRes] = await Promise.all([
         fetch(`${API_URL}/admin/stats`, { headers }),
         fetch(`${API_URL}/admin/ads?status=${adFilter}`, { headers }),
         fetch(`${API_URL}/admin/users?search=${encodeURIComponent(userSearch)}`, { headers }),
@@ -154,6 +175,7 @@ export default function AdminDashboardPage() {
         fetch(`${API_URL}/admin/reviews`, { headers }),
         fetch(`${API_URL}/admin/trust`, { headers }),
         fetch(`${API_URL}/buyer-requests/admin/all`, { headers }),
+        fetch(`${API_URL}/newsletter/admin/overview`, { headers }),
       ]);
 
       if (statsRes.ok) setStats(await statsRes.json());
@@ -176,6 +198,15 @@ export default function AdminDashboardPage() {
         const rJson = await reqRes.json();
         setAdminBuyerRequests(rJson.requests || []);
       }
+      if (newsRes?.ok) {
+        const nJson = await newsRes.json();
+        setNewsletterData({
+          stats: nJson.stats || { totalActive: 0, fromSignup: 0, fromFooter: 0, verifiedSellers: 0 },
+          subscribers: nJson.subscribers || [],
+          campaigns: nJson.campaigns || [],
+          hotDeals: nJson.hotDeals || [],
+        });
+      }
     } catch (err) {
       console.error('Admin load error:', err);
     } finally {
@@ -189,7 +220,7 @@ export default function AdminDashboardPage() {
       const tabParam = sp.get('tab');
       if (
         tabParam &&
-        ['moderation', 'users', 'trust', 'reviews', 'categories', 'blog', 'messages', 'requests'].includes(tabParam)
+        ['moderation', 'users', 'trust', 'reviews', 'categories', 'blog', 'messages', 'requests', 'newsletter'].includes(tabParam)
       ) {
         setActiveTab(tabParam as any);
       }
@@ -656,6 +687,17 @@ export default function AdminDashboardPage() {
           }`}
         >
           <Megaphone className="w-4 h-4" /> Buyer Requests ({adminBuyerRequests.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('newsletter')}
+          className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 transition ${
+            activeTab === 'newsletter'
+              ? 'bg-gray-900 text-white'
+              : 'text-gray-700 hover:bg-gray-100'
+          }`}
+        >
+          <Mail className="w-4 h-4 text-brand-orange" /> Newsletter ({newsletterData.stats.totalActive})
         </button>
         <button
           type="button"
@@ -1853,6 +1895,306 @@ export default function AdminDashboardPage() {
               </div>
             ))
           )}
+        </div>
+      )}
+
+      {/* TAB: NEWSLETTER & EMAIL CAMPAIGNS */}
+      {activeTab === 'newsletter' && (
+        <div className="space-y-6">
+          {/* Subscriber KPIs + CSV Export */}
+          <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <h2 className="font-black text-gray-900 text-base">Newsletter Subscribers &amp; Resend Sync</h2>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Automatically collects registration opt-ins &amp; footer signups and syncs contacts to Resend.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    const res = await fetch(`${API_URL}/newsletter/admin/export-csv`, {
+                      headers: getAuthHeaders(),
+                    });
+                    if (!res.ok) {
+                      notify('Failed to export CSV');
+                      return;
+                    }
+                    const blob = await res.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'ji_africa_subscribers.csv';
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    window.URL.revokeObjectURL(url);
+                    notify('Subscribers CSV downloaded!');
+                  } catch {
+                    notify('Error exporting CSV');
+                  }
+                }}
+                className="px-4 py-2.5 bg-gray-900 hover:bg-gray-800 text-white rounded-xl text-xs font-black flex items-center gap-1.5 self-start"
+              >
+                <Download className="w-3.5 h-3.5 text-brand-orange" /> Export Active CSV
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="p-3.5 rounded-xl bg-orange-50/70 border border-orange-100">
+                <p className="text-[11px] font-bold text-gray-500 uppercase">Active Subscribers</p>
+                <p className="text-2xl font-black text-brand-orange mt-1">
+                  {newsletterData.stats.totalActive}
+                </p>
+              </div>
+              <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-200/80">
+                <p className="text-[11px] font-bold text-gray-500 uppercase">Registration Opt-In</p>
+                <p className="text-2xl font-black text-gray-900 mt-1">
+                  {newsletterData.stats.fromSignup}
+                </p>
+              </div>
+              <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-200/80">
+                <p className="text-[11px] font-bold text-gray-500 uppercase">Footer Signups</p>
+                <p className="text-2xl font-black text-gray-900 mt-1">
+                  {newsletterData.stats.fromFooter}
+                </p>
+              </div>
+              <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-100">
+                <p className="text-[11px] font-bold text-gray-500 uppercase">Verified Sellers</p>
+                <p className="text-2xl font-black text-emerald-700 mt-1">
+                  {newsletterData.stats.verifiedSellers}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Campaign Composer */}
+          <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm space-y-4">
+            <div>
+              <h3 className="font-black text-gray-900 text-base">Send Weekly Hot Deals Campaign</h3>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Broadcasts mobile-ready emails via Resend with automatic 1-click unsubscribe links.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-bold text-gray-700 mb-1.5">
+                  Email Subject Line *
+                </label>
+                <input
+                  type="text"
+                  value={campaignSubject}
+                  onChange={(e) => setCampaignSubject(e.target.value)}
+                  placeholder="e.g. This Week's Top Verified Deals on ji.africa"
+                  className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-sm font-semibold outline-none focus:border-brand-orange"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1.5">
+                  Target Audience
+                </label>
+                <select
+                  value={campaignSegment}
+                  onChange={(e) => setCampaignSegment(e.target.value as any)}
+                  className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-sm bg-white outline-none focus:border-brand-orange"
+                >
+                  <option value="all">All Active Subscribers ({newsletterData.stats.totalActive})</option>
+                  <option value="verified_sellers">Verified Sellers Only ({newsletterData.stats.verifiedSellers})</option>
+                  <option value="buyers">Buyers &amp; Guests Only</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-700 mb-1.5">
+                Campaign Intro Message *
+              </label>
+              <textarea
+                rows={4}
+                value={campaignIntro}
+                onChange={(e) => setCampaignIntro(e.target.value)}
+                className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-xs leading-relaxed outline-none focus:border-brand-orange"
+              />
+            </div>
+
+            <label className="flex items-center gap-2.5 p-3 rounded-xl bg-orange-50/60 border border-orange-200/80 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={includeHotDeals}
+                onChange={(e) => setIncludeHotDeals(e.target.checked)}
+                className="w-4 h-4 accent-brand-orange"
+              />
+              <span className="text-xs font-bold text-gray-900">
+                Auto-attach this week&apos;s Top {newsletterData.hotDeals.length} VIP &amp; Trending Deals (with photos, ₦ prices &amp; direct links)
+              </span>
+            </label>
+
+            {includeHotDeals && newsletterData.hotDeals.length > 0 && (
+              <div className="grid grid-cols-2 sm:grid-cols-6 gap-2.5 pt-1">
+                {newsletterData.hotDeals.map((deal) => (
+                  <div key={deal.id} className="p-2 rounded-xl border border-gray-200 bg-gray-50/60">
+                    <p className="text-[11px] font-bold text-gray-800 truncate">{deal.title}</p>
+                    <p className="text-xs font-black text-brand-orange mt-0.5">
+                      ₦{Number(deal.price || 0).toLocaleString('en-NG')}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="pt-3 border-t border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              {/* Test Preview */}
+              <div className="flex items-center gap-2">
+                <input
+                  type="email"
+                  value={testRecipientEmail}
+                  onChange={(e) => setTestRecipientEmail(e.target.value)}
+                  placeholder="Test email (e.g. aminulive@gmail.com)"
+                  className="px-3 py-2 border border-gray-300 rounded-xl text-xs outline-none focus:border-brand-orange w-56"
+                />
+                <button
+                  type="button"
+                  disabled={sendingCampaign || !testRecipientEmail.trim()}
+                  onClick={async () => {
+                    setSendingCampaign(true);
+                    try {
+                      const res = await fetch(`${API_URL}/newsletter/admin/send`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+                        body: JSON.stringify({
+                          subject: campaignSubject,
+                          intro_text: campaignIntro,
+                          segment: campaignSegment,
+                          include_deals: includeHotDeals,
+                          test_email: testRecipientEmail.trim(),
+                        }),
+                      });
+                      const data = await res.json().catch(() => ({}));
+                      notify(res.ok ? data.message || 'Test email sent!' : data.error || 'Failed to send test');
+                    } catch {
+                      notify('Network error sending test');
+                    } finally {
+                      setSendingCampaign(false);
+                    }
+                  }}
+                  className="px-3.5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-900 rounded-xl text-xs font-black disabled:opacity-50"
+                >
+                  Send Test
+                </button>
+              </div>
+
+              {/* Live Broadcast */}
+              <button
+                type="button"
+                disabled={sendingCampaign || !campaignSubject.trim() || !campaignIntro.trim()}
+                onClick={async () => {
+                  if (
+                    !confirm(
+                      `Broadcast this newsletter campaign now to segment "${campaignSegment}"?`
+                    )
+                  )
+                    return;
+                  setSendingCampaign(true);
+                  try {
+                    const res = await fetch(`${API_URL}/newsletter/admin/send`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+                      body: JSON.stringify({
+                        subject: campaignSubject,
+                        intro_text: campaignIntro,
+                        segment: campaignSegment,
+                        include_deals: includeHotDeals,
+                      }),
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (res.ok) {
+                      notify(data.message || 'Campaign broadcast sent!');
+                      loadAdminData();
+                    } else {
+                      notify(data.error || 'Failed to send campaign');
+                    }
+                  } catch {
+                    notify('Network error broadcasting campaign');
+                  } finally {
+                    setSendingCampaign(false);
+                  }
+                }}
+                className="px-5 py-2.5 bg-brand-orange hover:bg-orange-700 text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+              >
+                {sendingCampaign ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Send className="w-4 h-4" />
+                )}
+                Broadcast Campaign Now
+              </button>
+            </div>
+          </div>
+
+          {/* Campaign Logs & Recent Subscribers */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+              <div className="p-4 border-b border-gray-100">
+                <h3 className="font-bold text-gray-900 text-sm">Sent Campaign History</h3>
+              </div>
+              {newsletterData.campaigns.length === 0 ? (
+                <div className="p-8 text-center text-xs text-gray-500">
+                  No campaigns broadcast yet. Send a test email above to preview!
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-100">
+                  {newsletterData.campaigns.map((c) => (
+                    <div key={c.id} className="p-4 flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-black text-gray-900">{c.subject}</p>
+                        <p className="text-[11px] text-gray-500 mt-0.5">
+                          Segment: <strong>{c.segment}</strong> •{' '}
+                          {new Date(c.created_at).toLocaleDateString('en-GB')}
+                        </p>
+                      </div>
+                      <span className="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-black">
+                        {c.recipients_count} sent
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+              <div className="p-4 border-b border-gray-100">
+                <h3 className="font-bold text-gray-900 text-sm">Latest Opt-In Subscribers</h3>
+              </div>
+              {newsletterData.subscribers.length === 0 ? (
+                <div className="p-8 text-center text-xs text-gray-500">
+                  No subscribers recorded yet.
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-100 max-h-80 overflow-y-auto">
+                  {newsletterData.subscribers.map((s) => (
+                    <div key={s.id} className="p-3.5 flex items-center justify-between gap-2 text-xs">
+                      <span className="font-semibold text-gray-800 truncate">{s.email}</span>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="px-2 py-0.5 rounded bg-gray-100 text-gray-600 text-[10px] font-bold uppercase">
+                          {s.source || 'signup'}
+                        </span>
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-black ${
+                            s.is_active ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-700'
+                          }`}
+                        >
+                          {s.is_active ? 'Active' : 'Unsubscribed'}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
