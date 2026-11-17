@@ -82,6 +82,7 @@ function SellFormContent() {
   const [isNegotiable, setIsNegotiable] = useState('false');
   const [vipPlan, setVipPlan] = useState('');
   const [jiTrustEnabled, setJiTrustEnabled] = useState(false);
+  const [publishedShareAd, setPublishedShareAd] = useState<any>(null);
   const [showJiTrustTerms, setShowJiTrustTerms] = useState(false);
 
   // Images State

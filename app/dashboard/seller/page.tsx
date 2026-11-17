@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { MessageCircle, Copy, Check, Star } from 'lucide-react';
+import WhatsAppShareFlyerModal from '../../components/WhatsAppShareFlyerModal';
 import {
   LayoutDashboard,
   Plus,
@@ -83,6 +85,8 @@ function SellerDashboardContent() {
   const [disputeReasons, setDisputeReasons] = useState<Record<number, string>>({});
   const [offers, setOffers] = useState<any[]>([]);
   const [priceEditAd, setPriceEditAd] = useState<any>(null);
+  const [whatsappShareAd, setWhatsappShareAd] = useState<any>(null);
+  const [copiedCatalogLink, setCopiedCatalogLink] = useState(false);
   const [newPriceInput, setNewPriceInput] = useState("");
   const [statusFilter, setStatusFilter] = useState<'all' | 'Available' | 'Sold' | 'VIP'>('all');
 
@@ -623,6 +627,14 @@ function SellerDashboardContent() {
                       </button>
                     )}
 
+                    <button
+                      type="button"
+                      onClick={() => setWhatsappShareAd(ad)}
+                      className="px-3 py-2 bg-[#25D366] hover:bg-[#128C7E] text-white rounded-lg text-xs font-black flex items-center gap-1 shadow-xs transition"
+                    >
+                      <MessageCircle className="w-3.5 h-3.5" /> Share on WhatsApp
+                    </button>
+
                     <Link
                       href={`/sell?edit=${ad.id}`}
                       className="px-3 py-2 bg-brand-orange hover:bg-orange-700 text-white rounded-lg text-xs font-bold transition"
@@ -1123,6 +1135,13 @@ function SellerDashboardContent() {
           </div>
         </div>
       )}
+    
+      {whatsappShareAd && (
+        <WhatsAppShareFlyerModal
+          ad={whatsappShareAd}
+          onClose={() => setWhatsappShareAd(null)}
+        />
+      )}
     </div>
   );
 }
@@ -1133,7 +1152,7 @@ export default function SellerDashboardPage() {
       fallback={
         <div className="flex items-center justify-center min-h-[60vh]">
           <Loader2 className="w-8 h-8 animate-spin text-brand-orange" />
-        </div>
+</div>
       }
     >
       <SellerDashboardContent />

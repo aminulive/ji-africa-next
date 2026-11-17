@@ -84,3 +84,16 @@ html.dark textarea {
   color: #f4f4f5;
   border-color: #3f3f46;
 }
+/* Bulletproof Light & Dark Mode Specification Typography */
+html:not(.dark) .ji-spec-value {
+  color: #111827 !important;
+}
+html.dark .ji-spec-value {
+  color: #f9fafb !important;
+}
+html:not(.dark) .ji-spec-label {
+  color: #4b5563 !important;
+}
+html.dark .ji-spec-label {
+  color: #9ca3af !important;
+}

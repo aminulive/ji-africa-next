@@ -783,7 +783,7 @@ export default function AdDetailsClient({
                   <div className="w-9 h-9 rounded-full bg-orange-50 dark:bg-orange-500/10 text-brand-orange flex items-center justify-center mb-1.5">
                     <Sparkles className="w-4 h-4" />
                   </div>
-                  <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
+                  <span className="text-xs font-bold ji-spec-value">
                     {ad.condition || 'Used'}
                   </span>
                 </div>
@@ -793,7 +793,7 @@ export default function AdDetailsClient({
                     <div className="w-9 h-9 rounded-full bg-orange-50 dark:bg-orange-500/10 text-brand-orange flex items-center justify-center mb-1.5">
                       <Truck className="w-4 h-4" />
                     </div>
-                    <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
+                    <span className="text-xs font-bold ji-spec-value">
                       {ad.delivery_option}
                     </span>
                   </div>
@@ -803,7 +803,7 @@ export default function AdDetailsClient({
                   <div className="w-9 h-9 rounded-full bg-orange-50 dark:bg-orange-500/10 text-brand-orange flex items-center justify-center mb-1.5">
                     <Tag className="w-4 h-4" />
                   </div>
-                  <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
+                  <span className="text-xs font-bold ji-spec-value">
                     {ad.is_negotiable ? 'Negotiable' : 'Fixed Price'}
                   </span>
                 </div>
@@ -824,10 +824,10 @@ export default function AdDetailsClient({
               <div className="grid grid-cols-2 gap-x-8 gap-y-4">
                 {specItems.map((spec) => (
                   <div key={spec.label} className="min-w-0">
-                    <p className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-slate-100 truncate">
+                    <p className="text-xs sm:text-sm font-extrabold ji-spec-value truncate">
                       {spec.value}
                     </p>
-                    <p className="text-[10px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400 mt-0.5">
+                    <p className="text-[10px] uppercase tracking-wider font-bold ji-spec-label mt-0.5">
                       {spec.label}
                     </p>
                   </div>
@@ -1036,6 +1036,34 @@ export default function AdDetailsClient({
               >
                 <PhoneCall className="w-4 h-4 text-brand-orange" /> Request Seller Callback
               </button>
+
+              {!isUnavailable && formattedPhone && (
+                <div className="pt-1">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">
+                    Quick Ask on WhatsApp
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      'Is this still available?',
+                      'What is your last price?',
+                      ...(ad.ji_trust_enabled ? ['Can we do JI Trust Escrow?'] : []),
+                      'Can you deliver?',
+                    ].map((promptText) => (
+                      <a
+                        key={promptText}
+                        href={`https://wa.me/${formattedPhone.replace('+', '')}?text=${encodeURIComponent(
+                          `Hello, I saw your ad on ji.africa:\n*${ad.title}* (${formatNaira(ad.price)})\n${adPageUrl}\n\n${promptText}`
+                        )}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#128C7E] border border-[#25D366]/25 transition"
+                      >
+                        {promptText}
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
                 {ad.ji_trust_enabled && !isUnavailable && (
                   <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 space-y-2">
                     {currentUser && Number(currentUser.id || currentUser.userId || 0) > 0 && Number(currentUser.id || currentUser.userId) === Number(ad.user_id || ad.seller_id || ad.user?.id || 0) ? (
