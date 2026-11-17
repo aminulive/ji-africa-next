@@ -23,6 +23,11 @@ import {
   X,
   ExternalLink,
   Receipt,
+  Megaphone,
+  Send,
+  BadgeCheck,
+  MapPin,
+  Clock,
 } from 'lucide-react';
 
 const API_URL = 'https://ji-africa-backend.onrender.com/api';
@@ -79,7 +84,15 @@ function SellerDashboardContent() {
 
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'listings' | 'trust' | 'offers' | 'callbacks' | 'payments'>('listings');
+  const [activeTab, setActiveTab] = useState<'listings' | 'trust' | 'offers' | 'callbacks' | 'payments' | 'requests' | 'my-requests'>('listings');
+  const [buyerLeads, setBuyerLeads] = useState<any[]>([]);
+  const [isVerifiedMerchant, setIsVerifiedMerchant] = useState(false);
+  const [myRequests, setMyRequests] = useState<any[]>([]);
+  const [quoteModalReq, setQuoteModalReq] = useState<any>(null);
+  const [quotePrice, setQuotePrice] = useState('');
+  const [quoteMessage, setQuoteMessage] = useState('');
+  const [quoteAdId, setQuoteAdId] = useState('');
+  const [submittingQuote, setSubmittingQuote] = useState(false);
   const [trustOrders, setTrustOrders] = useState<any[]>([]);
   const [waybillInputs, setWaybillInputs] = useState<Record<number, string>>({});
   const [disputeReasons, setDisputeReasons] = useState<Record<number, string>>({});
@@ -126,10 +139,12 @@ function SellerDashboardContent() {
     }
 
     try {
-      const [res, offersRes, trustRes] = await Promise.all([
+      const [res, offersRes, trustRes, leadsRes, myReqRes] = await Promise.all([
         fetch(`${API_URL}/dashboard/seller`, { headers: getAuthHeaders() }),
         fetch(`${API_URL}/dashboard/offers`, { headers: getAuthHeaders() }),
         fetch(`${API_URL}/payments/trust/orders`, { headers: getAuthHeaders() }),
+        fetch(`${API_URL}/buyer-requests/feed`, { headers: getAuthHeaders() }),
+        fetch(`${API_URL}/buyer-requests/mine`, { headers: getAuthHeaders() }),
       ]);
       if (res.ok) {
         const data = await res.json();
@@ -145,6 +160,15 @@ function SellerDashboardContent() {
         const tData = await trustRes.json();
         setTrustOrders(tData.orders || []);
       }
+      if (leadsRes?.ok) {
+        const lData = await leadsRes.json();
+        setBuyerLeads(lData.requests || []);
+        setIsVerifiedMerchant(Boolean(lData.isVerifiedSeller));
+      }
+      if (myReqRes?.ok) {
+        const mrData = await myReqRes.json();
+        setMyRequests(mrData.requests || []);
+      }
     } catch (err) {
       console.error('Seller dashboard error:', err);
     } finally {
@@ -155,7 +179,9 @@ function SellerDashboardContent() {
   // Verify returning Paystack / NowPayments redirect
   useEffect(() => {
     const initialTab = searchParams?.get('tab');
-    if (initialTab === 'trust') setActiveTab('trust');
+    if (initialTab === 'trust' || initialTab === 'requests' || initialTab === 'my-requests') {
+      setActiveTab(initialTab);
+    }
     const trustRef = searchParams?.get('trust_ref');
     const trustDemo = searchParams?.get('demo') === '1' ? '?demo=1' : '';
     const savedTok = typeof window !== 'undefined' ? localStorage.getItem('ji_token') : null;
@@ -327,6 +353,52 @@ function SellerDashboardContent() {
         loadDashboard();
       } else {
         notify(data.error || "Could not open dispute");
+      }
+    } catch {}
+  };
+
+  const handleSendMerchantQuote = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quoteModalReq) return;
+    setSubmittingQuote(true);
+    try {
+      const res = await fetch(`${API_URL}/buyer-requests/${quoteModalReq.id}/quotes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+        body: JSON.stringify({
+          offered_price: Number(quotePrice),
+          message: quoteMessage.trim(),
+          ad_id: quoteAdId ? Number(quoteAdId) : null,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        notify(data.message || 'Quote sent to buyer!');
+        setQuoteModalReq(null);
+        setQuotePrice('');
+        setQuoteMessage('');
+        setQuoteAdId('');
+        loadDashboard();
+      } else {
+        notify(data.error || 'Could not send quote');
+      }
+    } catch {
+      notify('Network error sending quote');
+    } finally {
+      setSubmittingQuote(false);
+    }
+  };
+
+  const handleCloseMyRequest = async (reqId: number, status: 'fulfilled' | 'closed') => {
+    try {
+      const res = await fetch(`${API_URL}/buyer-requests/${reqId}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+        body: JSON.stringify({ status }),
+      });
+      if (res.ok) {
+        notify(`Request marked as ${status}`);
+        loadDashboard();
       }
     } catch {}
   };
@@ -508,6 +580,24 @@ function SellerDashboardContent() {
           }`}
         >
           <PhoneCall className="w-4 h-4" /> Buyer Callbacks ({callbacks.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('requests')}
+          className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 transition ${
+            activeTab === 'requests' ? 'bg-brand-orange text-white' : 'text-orange-900 bg-orange-50 hover:bg-orange-100'
+          }`}
+        >
+          <Megaphone className="w-4 h-4" /> Buyer Leads ({buyerLeads.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('my-requests')}
+          className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 transition ${
+            activeTab === 'my-requests' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100'
+          }`}
+        >
+          <Sparkles className="w-4 h-4 text-brand-orange" /> My Requests ({myRequests.length})
         </button>
         <button
           type="button"
@@ -1136,6 +1226,335 @@ function SellerDashboardContent() {
         </div>
       )}
     
+      {/* TAB: BUYER LEADS FOR VERIFIED MERCHANTS */}
+      {activeTab === 'requests' && (
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="p-5 border-b border-gray-100 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="font-black text-gray-900 text-base flex items-center gap-2">
+                <Megaphone className="w-4 h-4 text-brand-orange" /> Live Buyer Sourcing Requests
+              </h2>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Verified merchants can respond to active buyer requests and unlock direct WhatsApp contact.
+              </p>
+            </div>
+            {!isVerifiedMerchant && (
+              <Link
+                href="/profile"
+                className="px-4 py-2 bg-brand-orange text-white rounded-xl text-xs font-black"
+              >
+                Verify Seller Account to Quote
+              </Link>
+            )}
+          </div>
+
+          {!isVerifiedMerchant && (
+            <div className="p-4 bg-amber-50 border-b border-amber-200 text-xs text-amber-900 font-semibold">
+              Only <strong>Verified Merchants</strong> can submit quotes and unlock buyer phone numbers. Complete verification in your Profile to respond.
+            </div>
+          )}
+
+          {buyerLeads.length === 0 ? (
+            <div className="p-10 text-center text-xs text-gray-500">
+              No active buyer requests at the moment. Check back soon!
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-100">
+              {buyerLeads.map((lead) => {
+                const scopeLabel =
+                  lead.location_scope === 'lga' && lead.sub_region_name
+                    ? `${lead.sub_region_name}, ${(lead.region_name || '').replace(/\s*State$/i, '')}`
+                    : lead.location_scope === 'state' && lead.region_name
+                    ? `All of ${lead.region_name.replace(/\s*State$/i, '')}`
+                    : 'All of Nigeria';
+                const cleanWa = String(lead.buyer_phone || '').replace(/[^0-9]/g, '').replace(/^0/, '234');
+                return (
+                  <div key={lead.id} className="p-5 flex flex-col md:flex-row justify-between gap-4">
+                    <div className="flex gap-4 min-w-0">
+                      {lead.image_url && (
+                        <img
+                          src={lead.image_url}
+                          alt={lead.title}
+                          className="w-20 h-20 rounded-xl object-cover border border-gray-200 shrink-0"
+                        />
+                      )}
+                      <div className="space-y-1.5 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="px-2.5 py-0.5 rounded-full bg-orange-100 text-brand-orange text-[10px] font-black uppercase">
+                            {scopeLabel}
+                          </span>
+                          {lead.category_name && (
+                            <span className="px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-700 text-[10px] font-bold">
+                              {lead.category_name}
+                            </span>
+                          )}
+                          <span className="text-[11px] font-bold text-emerald-700">
+                            {lead.urgency}
+                          </span>
+                        </div>
+                        <h3 className="text-sm font-black text-gray-900">{lead.title}</h3>
+                        <p className="text-xs text-gray-600 leading-relaxed">{lead.description}</p>
+                        <div className="flex flex-wrap items-center gap-3 text-[11px] text-gray-500 pt-1">
+                          <span>
+                            Budget:{' '}
+                            <strong className="text-gray-900">
+                              {lead.budget_max
+                                ? `Up to ₦${Number(lead.budget_max).toLocaleString('en-NG')}`
+                                : 'Open Budget'}
+                            </strong>
+                          </span>
+                          <span>• Condition: <strong>{lead.condition_pref}</strong></span>
+                          <span>• Quotes: <strong>{lead.quotes_count}/{lead.max_quotes}</strong></span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col justify-center items-start md:items-end gap-2 shrink-0">
+                      {lead.already_quoted ? (
+                        <>
+                          <span className="px-3 py-1 bg-emerald-100 text-emerald-800 rounded-lg text-[11px] font-black">
+                            ✓ Quote Sent ({lead.buyer_phone})
+                          </span>
+                          {cleanWa.length >= 10 && (
+                            <a
+                              href={`https://wa.me/${cleanWa}?text=${encodeURIComponent(`Hello ${lead.buyer_name}, I sent you a quote on ji.africa for "${lead.title}".`)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black flex items-center gap-1.5"
+                            >
+                              <MessageCircle className="w-3.5 h-3.5" /> Chat on WhatsApp
+                            </a>
+                          )}
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={!isVerifiedMerchant || Number(lead.quotes_count) >= Number(lead.max_quotes)}
+                          onClick={() => {
+                            setQuoteModalReq(lead);
+                            setQuotePrice(lead.budget_max ? String(lead.budget_max) : '');
+                            setQuoteMessage('');
+                          }}
+                          className="px-4 py-2.5 bg-brand-orange hover:bg-orange-700 text-white rounded-xl text-xs font-black flex items-center gap-1.5 disabled:opacity-50"
+                        >
+                          <Send className="w-3.5 h-3.5" /> Send Quote / Reach Out
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB: MY BUYER REQUESTS & INCOMING MERCHANT QUOTES */}
+      {activeTab === 'my-requests' && (
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="p-5 border-b border-gray-100 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="font-black text-gray-900 text-base">My Submitted Buyer Requests</h2>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Compare quotes from verified merchants and close your request once fulfilled.
+              </p>
+            </div>
+            <Link
+              href="/request"
+              className="px-4 py-2 bg-brand-orange hover:bg-orange-700 text-white rounded-xl text-xs font-black"
+            >
+              + New Buyer Request
+            </Link>
+          </div>
+
+          {myRequests.length === 0 ? (
+            <div className="p-10 text-center space-y-3">
+              <p className="text-xs text-gray-500">You haven&apos;t submitted any Buyer Requests yet.</p>
+              <Link
+                href="/request"
+                className="inline-block px-4 py-2 bg-brand-orange text-white rounded-xl text-xs font-black"
+              >
+                Submit a Buyer Request
+              </Link>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-100">
+              {myRequests.map((reqItem) => (
+                <div key={reqItem.id} className="p-5 space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                            reqItem.status === 'open'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : 'bg-gray-100 text-gray-600'
+                          }`}
+                        >
+                          {reqItem.status}
+                        </span>
+                        <span className="text-[11px] text-gray-500">
+                          {reqItem.quotes?.length || 0} Verified Merchant Quote(s)
+                        </span>
+                      </div>
+                      <h3 className="text-sm font-black text-gray-900 mt-1">{reqItem.title}</h3>
+                      <p className="text-xs text-gray-600 mt-0.5">{reqItem.description}</p>
+                    </div>
+
+                    {reqItem.status === 'open' && (
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleCloseMyRequest(reqItem.id, 'fulfilled')}
+                          className="px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-black"
+                        >
+                          Mark as Fulfilled
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {Array.isArray(reqItem.quotes) && reqItem.quotes.length > 0 && (
+                    <div className="bg-gray-50 rounded-xl p-4 space-y-3 border border-gray-200/80">
+                      <p className="text-[11px] font-black uppercase text-gray-500">
+                        Quotes from Verified Merchants
+                      </p>
+                      {reqItem.quotes.map((q: any) => {
+                        const cleanWa = String(q.seller_phone || '').replace(/[^0-9]/g, '').replace(/^0/, '234');
+                        return (
+                          <div
+                            key={q.id}
+                            className="bg-white p-3.5 rounded-xl border border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                          >
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-black text-gray-900">
+                                  {q.shop_name || q.seller_name}
+                                </span>
+                                <BadgeCheck className="w-4 h-4 text-emerald-600" />
+                                <span className="text-xs font-black text-brand-orange ml-2">
+                                  ₦{Number(q.offered_price).toLocaleString('en-NG')}
+                                </span>
+                              </div>
+                              <p className="text-xs text-gray-600">{q.message}</p>
+                              {q.ad_id && q.ad_title && (
+                                <Link
+                                  href={`/ad/${q.ad_id}`}
+                                  className="inline-block text-[11px] font-bold text-blue-600 hover:underline"
+                                >
+                                  View Linked Listing: {q.ad_title} &rarr;
+                                </Link>
+                              )}
+                            </div>
+
+                            {cleanWa.length >= 10 && (
+                              <a
+                                href={`https://wa.me/${cleanWa}?text=${encodeURIComponent(`Hello ${q.shop_name || q.seller_name}, I saw your ₦${Number(q.offered_price).toLocaleString('en-NG')} quote for my request "${reqItem.title}" on ji.africa.`)}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black flex items-center gap-1.5 shrink-0"
+                              >
+                                <MessageCircle className="w-3.5 h-3.5" /> WhatsApp Seller
+                              </a>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* MERCHANT QUOTE MODAL */}
+      {quoteModalReq && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-black text-gray-900">Send Quote to Buyer</h3>
+              <button
+                type="button"
+                onClick={() => setQuoteModalReq(null)}
+                className="p-1 text-gray-400 hover:text-gray-700"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="text-xs text-gray-600">
+              Request: <strong className="text-gray-900">{quoteModalReq.title}</strong>
+            </p>
+            <form onSubmit={handleSendMerchantQuote} className="space-y-3.5">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">
+                  Your Offer Price (₦) *
+                </label>
+                <input
+                  type="number"
+                  required
+                  min={1}
+                  value={quotePrice}
+                  onChange={(e) => setQuotePrice(e.target.value)}
+                  placeholder="e.g. 820000"
+                  className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-sm font-bold outline-none focus:border-brand-orange"
+                />
+              </div>
+              {ads.length > 0 && (
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">
+                    Attach One of Your Listings (Optional)
+                  </label>
+                  <select
+                    value={quoteAdId}
+                    onChange={(e) => setQuoteAdId(e.target.value)}
+                    className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-xs bg-white outline-none focus:border-brand-orange"
+                  >
+                    <option value="">-- No attached listing --</option>
+                    {ads.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.title} (₦{Number(a.price).toLocaleString('en-NG')})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">
+                  Message &amp; Availability Details *
+                </label>
+                <textarea
+                  rows={3}
+                  required
+                  value={quoteMessage}
+                  onChange={(e) => setQuoteMessage(e.target.value)}
+                  placeholder="Confirm stock condition, location/delivery options, and why the buyer should buy from you..."
+                  className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-xs outline-none focus:border-brand-orange"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setQuoteModalReq(null)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-100"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingQuote}
+                  className="px-5 py-2 bg-brand-orange hover:bg-orange-700 text-white rounded-xl text-xs font-black flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  {submittingQuote && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  Send Quote &amp; Unlock Contact
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {whatsappShareAd && (
         <WhatsAppShareFlyerModal
           ad={whatsappShareAd}

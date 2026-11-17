@@ -1431,6 +1431,29 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
         )}
       </div>
 
+      {/* Buyer Request Discovery CTA */}
+      <div className="mt-8 bg-gradient-to-r from-orange-50 via-amber-50/70 to-orange-50 border border-orange-200 rounded-2xl p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shadow-2xs">
+        <div className="space-y-1">
+          <span className="inline-block text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-brand-orange text-white">
+            Verified Merchant Sourcing
+          </span>
+          <h3 className="text-base sm:text-lg font-black text-gray-900">
+            Didn&apos;t find what you&apos;re looking for?
+          </h3>
+          <p className="text-xs text-gray-600 max-w-xl leading-relaxed">
+            Submit a specific <strong>Buyer Request</strong> for All of Nigeria, your State, or your exact LGA — verified merchants with stock will reach out to you directly.
+          </p>
+        </div>
+        <div className="flex items-center gap-2.5 shrink-0">
+          <Link
+            href={searchQuery ? `/request?q=${encodeURIComponent(searchQuery)}` : "/request"}
+            className="px-5 py-3 bg-brand-orange hover:bg-orange-700 text-white rounded-xl text-xs font-black transition shadow-sm whitespace-nowrap"
+          >
+            Submit a Buyer Request
+          </Link>
+        </div>
+      </div>
+
       {recentlyViewed.length > 0 && (
         <div className="mt-8 bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
           <div className="flex items-center justify-between mb-3">

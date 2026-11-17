@@ -23,6 +23,7 @@ import {
   FolderTree,
   ChevronRight,
   ChevronDown,
+  Megaphone,
 } from 'lucide-react';
 
 const API_URL = 'https://ji-africa-backend.onrender.com/api';
@@ -46,8 +47,9 @@ function getAdThumb(ad: any) {
 export default function AdminDashboardPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<
-    'moderation' | 'users' | 'trust' | 'reviews' | 'categories' | 'blog' | 'messages'
+    'moderation' | 'users' | 'trust' | 'reviews' | 'categories' | 'blog' | 'messages' | 'requests'
   >('moderation');
+  const [adminBuyerRequests, setAdminBuyerRequests] = useState<any[]>([]);
   const [trustOrders, setTrustOrders] = useState<any[]>([]);
   const [trustSellers, setTrustSellers] = useState<any[]>([]);
   const [adminReviews, setAdminReviews] = useState<any[]>([]);
@@ -142,7 +144,7 @@ export default function AdminDashboardPage() {
 
     try {
       const headers = getAuthHeaders();
-      const [statsRes, adsRes, usersRes, catsRes, blogRes, msgRes, revRes, trustRes] = await Promise.all([
+      const [statsRes, adsRes, usersRes, catsRes, blogRes, msgRes, revRes, trustRes, reqRes] = await Promise.all([
         fetch(`${API_URL}/admin/stats`, { headers }),
         fetch(`${API_URL}/admin/ads?status=${adFilter}`, { headers }),
         fetch(`${API_URL}/admin/users?search=${encodeURIComponent(userSearch)}`, { headers }),
@@ -151,6 +153,7 @@ export default function AdminDashboardPage() {
         fetch(`${API_URL}/admin/messages`, { headers }),
         fetch(`${API_URL}/admin/reviews`, { headers }),
         fetch(`${API_URL}/admin/trust`, { headers }),
+        fetch(`${API_URL}/buyer-requests/admin/all`, { headers }),
       ]);
 
       if (statsRes.ok) setStats(await statsRes.json());
@@ -169,6 +172,10 @@ export default function AdminDashboardPage() {
         setTrustOrders(tJson.orders || []);
         setTrustSellers(tJson.enrolledSellers || []);
       }
+      if (reqRes?.ok) {
+        const rJson = await reqRes.json();
+        setAdminBuyerRequests(rJson.requests || []);
+      }
     } catch (err) {
       console.error('Admin load error:', err);
     } finally {
@@ -182,7 +189,7 @@ export default function AdminDashboardPage() {
       const tabParam = sp.get('tab');
       if (
         tabParam &&
-        ['moderation', 'users', 'categories', 'blog', 'messages'].includes(tabParam)
+        ['moderation', 'users', 'trust', 'reviews', 'categories', 'blog', 'messages', 'requests'].includes(tabParam)
       ) {
         setActiveTab(tabParam as any);
       }
@@ -638,6 +645,17 @@ export default function AdminDashboardPage() {
           }`}
         >
           <Users className="w-4 h-4" /> Users &amp; KYC ({users.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('requests')}
+          className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 transition ${
+            activeTab === 'requests'
+              ? 'bg-brand-orange text-white'
+              : 'text-orange-900 bg-orange-50 hover:bg-orange-100'
+          }`}
+        >
+          <Megaphone className="w-4 h-4" /> Buyer Requests ({adminBuyerRequests.length})
         </button>
         <button
           type="button"
@@ -1755,6 +1773,86 @@ export default function AdminDashboardPage() {
               ))
             )}
           </div>
+        </div>
+      )}
+
+      {/* TAB: BUYER REQUESTS MODERATION */}
+      {activeTab === 'requests' && (
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm divide-y divide-gray-100">
+          <div className="p-5 border-b border-gray-100">
+            <h2 className="font-bold text-gray-900 text-base">Buyer Sourcing Requests Moderation</h2>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Monitor buyer requests, enforce anti-spam quality, or close/delete abusive leads.
+            </p>
+          </div>
+          {adminBuyerRequests.length === 0 ? (
+            <div className="p-10 text-center text-xs text-gray-500">
+              No buyer requests submitted yet.
+            </div>
+          ) : (
+            adminBuyerRequests.map((br) => (
+              <div key={br.id} className="p-5 flex flex-col sm:flex-row justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                        br.status === 'open' ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-600'
+                      }`}
+                    >
+                      {br.status}
+                    </span>
+                    <span className="text-xs font-black text-gray-900">{br.title}</span>
+                    <span className="text-[11px] text-brand-orange font-bold">
+                      ({br.location_scope === 'lga' ? br.sub_region_name : br.location_scope === 'state' ? br.region_name : 'All Nigeria'})
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-600">{br.description}</p>
+                  <p className="text-[11px] text-gray-500">
+                    Buyer: <strong>{br.buyer_name}</strong> ({br.buyer_email} • {br.buyer_phone}) • Quotes: <strong>{br.quotes_count}/{br.max_quotes}</strong>
+                  </p>
+                </div>
+
+                <div className="flex items-start gap-2 shrink-0">
+                  {br.status === 'open' && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const res = await fetch(`${API_URL}/buyer-requests/admin/${br.id}/status`, {
+                          method: 'PUT',
+                          headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+                          body: JSON.stringify({ status: 'closed' }),
+                        });
+                        if (res.ok) {
+                          notify('Buyer request closed');
+                          loadAdminData();
+                        }
+                      }}
+                      className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-lg text-xs font-bold"
+                    >
+                      Close
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!confirm('Delete this buyer request permanently?')) return;
+                      const res = await fetch(`${API_URL}/buyer-requests/admin/${br.id}`, {
+                        method: 'DELETE',
+                        headers: getAuthHeaders(),
+                      });
+                      if (res.ok) {
+                        notify('Buyer request deleted');
+                        loadAdminData();
+                      }
+                    }}
+                    className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 rounded-lg text-xs font-bold flex items-center gap-1"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" /> Delete
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       )}
 

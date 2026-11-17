@@ -93,6 +93,15 @@ function NavbarContent() {
     setLocationLabel(searchParams.get('location') || 'All Nigeria');
   }, [searchParams]);
 
+  useEffect(() => {
+    const token = localStorage.getItem("ji_token");
+    const pendingRedirect = localStorage.getItem("ji_redirect_after_login");
+    if (token && pendingRedirect && pathname !== "/login") {
+      localStorage.removeItem("ji_redirect_after_login");
+      router.push(pendingRedirect);
+    }
+  }, [pathname, router]);
+
   const syncWishlistState = useCallback(async (fetchRemote = false) => {
     try {
       const localList = JSON.parse(localStorage.getItem("ji_wishlist") || "[]");
