@@ -35,7 +35,13 @@ export default function HeroBanner() {
               className="bg-gray-900 hover:bg-gray-800 text-white px-5 py-2.5 rounded-full text-xs font-bold transition shadow-md"
             >
               Post Ad Free
-            </Link>
+          </Link>
+          <Link
+            href="/flyer"
+            className="bg-white hover:bg-orange-50 text-brand-orange px-4 py-2.5 rounded-full text-xs font-black transition shadow-md inline-flex items-center gap-1.5"
+          >
+            <MessageCircle className="w-3.5 h-3.5 text-[#25D366]" /> Make Free WhatsApp Flyer
+          </Link>
             <button
               type="button"
               onClick={() => setShowTrustExplainer(true)}
