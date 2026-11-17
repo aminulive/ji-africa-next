@@ -959,7 +959,7 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
 
         {/* Always-Visible Quick Price Range Pills */}
         <div className="mb-3 flex items-center gap-2 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-          <span className="text-[10px] font-bold uppercase text-gray-400 shrink-0">
+          <span className="text-[10px] font-extrabold uppercase text-gray-700 dark:text-gray-300 shrink-0">
             Budget:
           </span>
           {PRICE_RANGE_PRESETS.map((preset) => {

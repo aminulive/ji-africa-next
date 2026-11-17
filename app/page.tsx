@@ -5,7 +5,7 @@ import MarketplaceFeed from './components/MarketplaceFeed';
 async function getCategories() {
   try {
     const res = await fetch('https://ji-africa-backend.onrender.com/api/categories', {
-      next: { revalidate: 0 },
+      next: { revalidate: 60 },
     });
     if (!res.ok) return [];
     return res.json();
@@ -17,7 +17,7 @@ async function getCategories() {
 async function getAds() {
   try {
     const res = await fetch('https://ji-africa-backend.onrender.com/api/ads?page=1&limit=20', {
-      next: { revalidate: 0 },
+      next: { revalidate: 60 },
     });
     if (!res.ok) return [];
     const data = await res.json();

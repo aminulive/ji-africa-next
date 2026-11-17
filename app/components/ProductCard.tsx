@@ -7,6 +7,14 @@ import Link from "next/link";
 
 const API_URL = "https://ji-africa-backend.onrender.com/api";
 
+function optimizeCardImg(url: string): string {
+  if (!url) return url;
+  if (url.includes("res.cloudinary.com") && url.includes("/upload/") && !url.includes("/upload/w_")) {
+    return url.replace("/upload/", "/upload/w_500,c_fill,q_auto,f_auto/");
+  }
+  return url;
+}
+
 export default function ProductCard({ ad }: { ad: any }) {
   const router = useRouter();
   const [isSaved, setIsSaved] = useState(false);
@@ -113,10 +121,9 @@ export default function ProductCard({ ad }: { ad: any }) {
 
       <Link href={`/ad/${ad.id}`} className="flex flex-col h-full">
         <div className="relative aspect-[4/3] sm:aspect-square bg-gray-100 overflow-hidden">
-          <img
-            src={imageUrl}
+          <img src={optimizeCardImg(imageUrl)}
             alt={ad.title}
-            className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
+            loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
           />
           {ad.is_vip && (
             <span className="absolute top-1 left-1 bg-amber-400 text-gray-950 font-black text-[9px] uppercase px-1.5 py-0.5 rounded shadow-sm z-10">
