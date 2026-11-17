@@ -117,6 +117,42 @@ function SellFormContent() {
     return found ? found.models : [];
   }, [specConfig, brand]);
 
+  
+  // Hydrate /sell automatically when arriving from the Free WhatsApp Flyer Maker
+  useEffect(() => {
+    if (isEdit || typeof window === 'undefined') return;
+    const rawDraft = localStorage.getItem('ji_flyer_draft');
+    if (!rawDraft) return;
+    try {
+      const draft = JSON.parse(rawDraft);
+      if (draft.title) setTitle(String(draft.title));
+      if (draft.price) setPrice(String(draft.price));
+      if (draft.condition) setCondition(String(draft.condition));
+      if (typeof draft.is_negotiable === 'boolean') {
+        setIsNegotiable(draft.is_negotiable ? 'true' : 'false');
+      }
+      if (draft.ji_trust_enabled) setJiTrustEnabled(true);
+      if (draft.location || draft.phone) {
+        const locPart = draft.location ? `Location: ${draft.location}. ` : '';
+        const phonePart = draft.phone ? `Call / WhatsApp: ${draft.phone}` : '';
+        setDescription(`${locPart}${phonePart}`.trim());
+      }
+      if (draft.imageDataUrl && String(draft.imageDataUrl).startsWith('data:image/')) {
+        fetch(draft.imageDataUrl)
+          .then((r) => r.blob())
+          .then((blob) => {
+            const ext = blob.type.includes('png') ? 'png' : 'jpg';
+            const file = new File([blob], `whatsapp-flyer-product.${ext}`, {
+              type: blob.type || 'image/jpeg',
+            });
+            setSelectedFiles((prev) => (prev.length === 0 ? [file] : prev));
+          })
+          .catch(() => {});
+      }
+      localStorage.removeItem('ji_flyer_draft');
+    } catch {}
+  }, [isEdit]);
+
   // 1. Auth Guard + Load Categories, Regions & Existing Ad (if editing)
   useEffect(() => {
     const token = localStorage.getItem('ji_token');

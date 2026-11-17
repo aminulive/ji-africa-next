@@ -68,6 +68,31 @@ export default function LoginPage() {
 
   const hasGoogleClient = Boolean(process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID);
 
+  const getPostAuthDestination = () => {
+    if (typeof window === 'undefined') return '/';
+    const params = new URLSearchParams(window.location.search);
+    const redir = params.get('redirect');
+    if (redir && redir.startsWith('/')) return redir;
+    if (localStorage.getItem('ji_flyer_draft')) return '/sell';
+    return '/';
+  };
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('mode') === 'register') {
+      setMode('register');
+    }
+    try {
+      const rawDraft = localStorage.getItem('ji_flyer_draft');
+      if (rawDraft) {
+        const draft = JSON.parse(rawDraft);
+        if (draft?.phone && !phone) setPhone(String(draft.phone));
+        if (draft?.location && !shopAddress) setShopAddress(String(draft.location));
+      }
+    } catch {}
+  }, []);
+
   useEffect(() => {
     if (resendCooldown <= 0) return;
     const timer = setTimeout(() => setResendCooldown((c) => c - 1), 1000);
@@ -78,7 +103,8 @@ export default function LoginPage() {
     localStorage.setItem('ji_user', JSON.stringify(data.user));
     localStorage.setItem('ji_token', data.token);
     window.dispatchEvent(new Event('ji_user_updated'));
-    router.push('/');
+    const dest = getPostAuthDestination();
+    router.push(dest);
     router.refresh();
   };
 
@@ -237,7 +263,7 @@ export default function LoginPage() {
             localStorage.setItem('ji_user', JSON.stringify(data.user));
             window.dispatchEvent(new Event('ji_user_updated'));
           }
-          router.push('/');
+          router.push(getPostAuthDestination());
           router.refresh();
         } else {
           setError(data.error || 'Invalid verification code.');
@@ -773,7 +799,7 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={() => {
-                  router.push('/');
+                  router.push(getPostAuthDestination());
                   router.refresh();
                 }}
                 className="text-xs font-semibold text-gray-500 hover:text-gray-800"

@@ -369,21 +369,23 @@ export default function FreeWhatsAppFlyerPage() {
   const handlePublishAndDownload = async () => {
     const token = localStorage.getItem("ji_token");
     if (!token || !user) {
-      // Save draft in sessionStorage and guide guest to quick login/register or /sell
       try {
-        sessionStorage.setItem(
+        localStorage.setItem(
           "ji_flyer_draft",
           JSON.stringify({
             title: title.trim(),
-            price: numericPrice,
+            price: numericPrice > 0 ? String(numericPrice) : "",
             location: location.trim(),
             condition,
             phone: phoneOnFlyer.trim(),
             is_negotiable: isNegotiable,
+            ji_trust_enabled: jiTrustBadge,
+            imageDataUrl: imageDataUrl || "",
+            savedAt: Date.now(),
           })
         );
       } catch {}
-      router.push("/sell");
+      router.push("/login?redirect=/sell&mode=register");
       return;
     }
 
