@@ -1429,9 +1429,8 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
             )}
           </div>
         )}
-      </div>
 
-      {/* Buyer Request Discovery CTA */}
+        {/* Buyer Request Discovery CTA */}
       <div className="mt-8 bg-gradient-to-r from-orange-50 via-amber-50/70 to-orange-50 border border-orange-200 rounded-2xl p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shadow-2xs">
         <div className="space-y-1">
           <span className="inline-block text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-brand-orange text-white">
@@ -1453,8 +1452,9 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
           </Link>
         </div>
       </div>
+      </div>
 
-      {recentlyViewed.length > 0 && (
+            {recentlyViewed.length > 0 && (
         <div className="mt-8 bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-xs font-black uppercase tracking-wider text-gray-800">
