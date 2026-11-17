@@ -26,7 +26,7 @@ function resolvePrimaryImage(rawImg: any): string {
 async function fetchSingleAd(id: string) {
   try {
     const singleRes = await fetch(`${API_URL}/ads/${id}`, {
-      cache: "no-store",
+      next: { revalidate: 60 },
     }).catch(() => null);
 
     if (singleRes && singleRes.ok) {
@@ -37,7 +37,7 @@ async function fetchSingleAd(id: string) {
     }
 
     const listRes = await fetch(`${API_URL}/ads?page=1&limit=50`, {
-      cache: "no-store",
+      next: { revalidate: 60 },
     }).catch(() => null);
     if (listRes && listRes.ok) {
       const listData = await listRes.json();
@@ -110,7 +110,7 @@ async function getAdAndSimilar(id: string) {
 
     const catQuery = ad.category_id ? `&category=${ad.category_id}` : "";
     const similarRes = await fetch(`${API_URL}/ads?page=1&limit=20${catQuery}`, {
-      cache: "no-store",
+      next: { revalidate: 60 },
     }).catch(() => null);
 
     const similarJson = similarRes && similarRes.ok ? await similarRes.json() : { ads: [] };

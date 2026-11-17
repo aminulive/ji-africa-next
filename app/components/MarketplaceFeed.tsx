@@ -19,6 +19,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import HeroBanner from './HeroBanner';
+import RecentlyViewedStrip from './RecentlyViewedStrip';
 import ProductCard from './ProductCard';
 import LocationModal from './LocationModal';
 import { CategoryIcon } from '../lib/categoryIcons';
@@ -642,6 +643,7 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
       {/* Main Feed Column */}
       <div className="flex-1 min-w-0">
         <HeroBanner />
+      <RecentlyViewedStrip />
 
         {/* Quick Trust & Escrow Filter Strip */}
         <div className="mb-4 bg-white rounded-xl border border-gray-200 px-3.5 py-2.5 shadow-2xs flex flex-wrap items-center justify-between gap-2">

@@ -14,6 +14,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { CategoryIcon } from '../lib/categoryIcons';
+import WhatsAppShareFlyerModal from '../components/WhatsAppShareFlyerModal';
 import { getCategorySpecConfig } from '../lib/categorySpecs';
 
 const API_URL = 'https://ji-africa-backend.onrender.com/api';
@@ -84,6 +85,85 @@ function SellFormContent() {
   const [jiTrustEnabled, setJiTrustEnabled] = useState(false);
   const [publishedShareAd, setPublishedShareAd] = useState<any>(null);
   const [showJiTrustTerms, setShowJiTrustTerms] = useState(false);
+  const [smartCaption, setSmartCaption] = useState('');
+  const [smartParsedNote, setSmartParsedNote] = useState('');
+
+  const handleSmartCaptionAutoFill = (overrideText?: string) => {
+    const raw = (overrideText !== undefined ? overrideText : smartCaption).trim();
+    if (!raw) return;
+    const lower = raw.toLowerCase();
+
+    // 1. Extract Price (e.g., 950k, 1.5m, ₦450,000, 120000)
+    const mMatch = lower.match(/(?:₦|ngn|n)?\s*(\d+(?:\.\d+)?)\s*m\b/);
+    const kMatch = lower.match(/(?:₦|ngn|n)?\s*(\d+(?:\.\d+)?)\s*k\b/);
+    const numMatch = raw.replace(/,/g, '').match(/(?:₦|NGN|N)?\s*(\d{4,9})\b/);
+    if (mMatch) {
+      setPrice(String(Math.round(parseFloat(mMatch[1]) * 1_000_000)));
+    } else if (kMatch) {
+      setPrice(String(Math.round(parseFloat(kMatch[1]) * 1_000)));
+    } else if (numMatch) {
+      setPrice(numMatch[1]);
+    }
+
+    // 2. Extract Condition
+    if (/tokunbo|uk used|us used|foreign used|direct belgium|belgium/.test(lower)) {
+      setCondition('Foreign Used (Tokunbo)');
+    } else if (/nigerian used|naija used|fairly used/.test(lower)) {
+      setCondition('Nigerian Used');
+    } else if (/brand new|sealed|new/.test(lower)) {
+      setCondition('Brand New');
+    }
+
+    // 3. Extract Negotiable
+    if (/negotiable|neg\b|last price|ono/.test(lower)) {
+      setIsNegotiable('true');
+    }
+
+    // 4. Match Category automatically
+    const catRules: Array<{ keywords: RegExp; catMatch: RegExp }> = [
+      { keywords: /iphone|samsung|pixel|tecno|infinix|redmi|xiaomi|ipad|tablet|airpods|earpiece|smartwatch/, catMatch: /phone/i },
+      { keywords: /laptop|macbook|hp |dell|lenovo|asus|acer|ps5|ps4|xbox|tv|television|speaker|camera|printer/, catMatch: /electronic/i },
+      { keywords: /toyota|honda|lexus|mercedes|benz|camry|corolla|accord|suv|car|bus|truck|keke|motorcycle/, catMatch: /vehicle/i },
+      { keywords: /apartment|flat|duplex|bungalow|land|plot|shop|office|rent|for sale|self contain/, catMatch: /property/i },
+      { keywords: /sofa|bed|mattress|fridge|freezer|ac |air conditioner|generator|gas cooker|washing machine/, catMatch: /home|furniture/i },
+      { keywords: /shoe|sneaker|bag|watch|dress|gown|shirt|perfume|wig|hair/, catMatch: /fashion|beauty/i },
+    ];
+    for (const rule of catRules) {
+      if (rule.keywords.test(lower)) {
+        const matchedCat = categories.find((c) => rule.catMatch.test(c.name));
+        if (matchedCat) {
+          setCategoryId(String(matchedCat.id));
+          setDisplayCategory(matchedCat.name);
+        }
+        break;
+      }
+    }
+
+    // 5. Match Nigerian State automatically
+    for (const reg of regions) {
+      const stateName = reg.name.replace(/\s*State$/i, '').toLowerCase();
+      if (
+        lower.includes(stateName) ||
+        (stateName.includes('abuja') && /abuja|wuse|garki|maitama|gwarinpa|kubwa|lugbe|jabi/.test(lower)) ||
+        (stateName.includes('lagos') && /lagos|ikeja|lekki|ajah|yaba|surulere|victoria island/.test(lower))
+      ) {
+        setRegionId(String(reg.id));
+        setDisplayLocation(reg.name.replace(/\s*State$/i, ''));
+        break;
+      }
+    }
+
+    // 6. Clean Title (first line or first ~65 chars) + full Description
+    const firstLine = raw.split(/\n|\./)[0].trim();
+    if (!title.trim()) {
+      setTitle(firstLine.slice(0, 70));
+    }
+    if (!description.trim()) {
+      setDescription(raw);
+    }
+
+    setSmartParsedNote('Auto-filled details from your caption! Review category/LGA and upload photos.');
+  };
 
   // Images State
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -440,8 +520,33 @@ function SellFormContent() {
       });
 
       if (res.ok) {
-        router.push(isEdit ? '/dashboard/seller' : '/');
-        router.refresh();
+        const created = await res.json().catch(() => ({}));
+        if (isEdit) {
+          router.push('/dashboard/seller');
+          router.refresh();
+        } else {
+          const newId = created.adId || created.id || '';
+          let previewImg = '';
+          if (selectedFiles[0]) {
+            previewImg = URL.createObjectURL(selectedFiles[0]);
+          }
+          let userPhone = '';
+          try {
+            const u = JSON.parse(localStorage.getItem('ji_user') || '{}');
+            userPhone = u?.phone || '';
+          } catch {}
+          setPublishedShareAd({
+            id: newId,
+            title,
+            price,
+            condition,
+            shop_address: displayLocation,
+            is_negotiable: isNegotiable === 'true',
+            ji_trust_enabled: jiTrustEnabled,
+            seller_phone: userPhone,
+            image: previewImg,
+          });
+        }
       } else {
         const errData = await res.json().catch(() => ({}));
         setError(errData.error || 'Failed to save ad. Please try again.');
@@ -487,6 +592,39 @@ function SellFormContent() {
         <div className="p-3.5 bg-red-50 border border-red-200 text-red-600 text-xs font-bold rounded-xl flex items-center gap-2">
           <AlertCircle className="w-4 h-4 shrink-0" />
           <span>{error}</span>
+        </div>
+      )}
+
+      {!isEdit && (
+        <div className="mb-5 bg-orange-50/80 border border-orange-200 rounded-2xl p-4 space-y-2.5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-black text-brand-orange">
+              ⚡ Paste WhatsApp Caption to Auto-Fill (Free &amp; Instant)
+            </span>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <input
+              type="text"
+              value={smartCaption}
+              onChange={(e) => {
+                const val = e.target.value;
+                setSmartCaption(val);
+                if (val.trim().length >= 8) handleSmartCaptionAutoFill(val);
+              }}
+              placeholder="e.g. UK used iPhone 14 Pro Max 256GB clean 950k Wuse 2 negotiable"
+              className="flex-1 px-3.5 py-2.5 bg-white border border-orange-200 rounded-xl text-xs font-medium outline-none focus:border-brand-orange"
+            />
+            <button
+              type="button"
+              onClick={() => handleSmartCaptionAutoFill()}
+              className="px-4 py-2.5 bg-brand-orange hover:bg-orange-700 text-white rounded-xl text-xs font-black shrink-0 transition"
+            >
+              Auto-Fill Form
+            </button>
+          </div>
+          {smartParsedNote && (
+            <p className="text-[11px] font-bold text-emerald-700">{smartParsedNote}</p>
+          )}
         </div>
       )}
 
