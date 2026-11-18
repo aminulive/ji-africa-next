@@ -104,6 +104,60 @@ function SellerDashboardContent() {
   const [copiedCatalogLink, setCopiedCatalogLink] = useState(false);
   const [newPriceInput, setNewPriceInput] = useState("");
   const [statusFilter, setStatusFilter] = useState<'all' | 'Available' | 'Sold' | 'VIP'>('all');
+  const [referralStats, setReferralStats] = useState<any>(null);
+  const [redeemingAdId, setRedeemingAdId] = useState<number | null>(null);
+
+  const loadReferralStats = async (token: string) => {
+    try {
+      const res = await fetch(`${API_URL}/users/referrals`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setReferralStats(data);
+      }
+    } catch {}
+  };
+
+  useEffect(() => {
+    const token = localStorage.getItem('ji_token');
+    if (token) loadReferralStats(token);
+  }, []);
+
+  const handleRedeemReferralBoost = async (ad: any) => {
+    const token = localStorage.getItem('ji_token');
+    if (!token) return;
+    if (!confirm(`Use 1 Free Referral Boost Credit to VIP-boost "${ad.title}" for 7 days?`)) return;
+    setRedeemingAdId(Number(ad.id));
+    try {
+      const res = await fetch(`${API_URL}/users/referrals/redeem`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ ad_id: Number(ad.id), vip_type: 'top' }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        notify(data.message || 'Free VIP Boost activated!');
+        loadReferralStats(token);
+        setAds((prev) =>
+          prev.map((item) =>
+            Number(item.id) === Number(ad.id)
+              ? { ...item, is_vip: true, vip_type: 'top' }
+              : item
+          )
+        );
+      } else {
+        notify(data.error || 'Could not redeem boost credit');
+      }
+    } catch {
+      notify('Network error redeeming boost');
+    } finally {
+      setRedeemingAdId(null);
+    }
+  };
 
   const [ads, setAds] = useState<any[]>([]);
   const [callbacks, setCallbacks] = useState<any[]>([]);
@@ -545,6 +599,65 @@ function SellerDashboardContent() {
         </div>
       </div>
 
+      {/* REFER & EARN FREE AD BOOSTS */}
+      {referralStats && (
+        <div className="bg-gradient-to-r from-orange-50 via-amber-50/70 to-orange-50 border border-orange-200 rounded-2xl p-5 shadow-xs flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          <div className="space-y-1.5 max-w-2xl">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="px-2.5 py-0.5 rounded-full bg-brand-orange text-white text-[10px] font-black uppercase tracking-wider">
+                Refer &amp; Earn Free Boosts
+              </span>
+              <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-black">
+                {Number(referralStats.free_boost_credits || 0)} Free Boost Credit(s) Available
+              </span>
+            </div>
+            <h3 className="text-base font-black text-gray-900">
+              Invite 1 Seller or Buyer &rarr; Unlock 1 Free 7-Day VIP Ad Boost
+            </h3>
+            <p className="text-xs text-gray-600">
+              Share your personal invite link. Once your friend signs up and verifies their email (or posts their first advert), you automatically earn a <strong>Free 7-Day TOP Boost</strong> to feature any of your listings!
+            </p>
+            <div className="flex flex-wrap items-center gap-3 text-[11px] font-bold text-gray-700 pt-1">
+              <span>Code: <strong className="text-brand-orange">{referralStats.referral_code}</strong></span>
+              <span>• Invited: <strong>{referralStats.total_invited || 0}</strong></span>
+              <span>• Verified &amp; Credited: <strong className="text-emerald-700">{referralStats.qualified_count || 0}</strong></span>
+              {Number(referralStats.pending_count || 0) > 0 && (
+                <span>• Pending Verification: <strong className="text-amber-700">{referralStats.pending_count}</strong></span>
+              )}
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 shrink-0">
+            <input
+              type="text"
+              readOnly
+              value={referralStats.referral_link || ''}
+              className="px-3 py-2.5 bg-white border border-orange-200 rounded-xl text-xs font-semibold text-gray-700 min-w-[230px] outline-none"
+            />
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard?.writeText(referralStats.referral_link || '');
+                  notify('Referral link copied! Share it on WhatsApp to earn free boosts.');
+                } catch {}
+              }}
+              className="px-4 py-2.5 bg-gray-900 hover:bg-black text-white rounded-xl text-xs font-black transition"
+            >
+              Copy Link
+            </button>
+            <a
+              href={`https://wa.me/?text=${encodeURIComponent(`Join me on ji.africa — Nigeria's fast classifieds & escrow marketplace! Sign up free with my invite link: ${referralStats.referral_link}`)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-4 py-2.5 bg-[#25D366] hover:bg-[#128C7E] text-white rounded-xl text-xs font-black text-center transition"
+            >
+              Invite via WhatsApp
+            </a>
+          </div>
+        </div>
+      )}
+
       {/* Section Tabs */}
       <div className="flex flex-wrap gap-2 bg-white p-2 rounded-xl border border-gray-200 shadow-sm">
         <button
@@ -717,26 +830,38 @@ function SellerDashboardContent() {
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2 shrink-0">
+                    {Number(referralStats?.free_boost_credits || 0) > 0 && ad.status === 'Available' && !ad.is_vip ? (
+                      <button
+                        type="button"
+                        disabled={redeemingAdId === Number(ad.id)}
+                        onClick={() => handleRedeemReferralBoost(ad)}
+                        className="px-3.5 py-2 bg-amber-400 hover:bg-amber-500 text-gray-950 rounded-lg text-xs font-black flex items-center gap-1.5 shadow-xs transition"
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        {redeemingAdId === Number(ad.id)
+                          ? 'Boosting...'
+                          : `Use Free Boost (${referralStats.free_boost_credits} left)`}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled
+                        title="Paid VIP Ad Boosting is coming soon — earn Free Boosts via referrals!"
+                        className="px-3.5 py-2 bg-gray-100 text-gray-400 border border-gray-200 rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-not-allowed select-none"
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        Boost Ad (Coming Soon)
+                      </button>
+                    )}
+
                     <button
                       type="button"
                       disabled
-                      title="VIP Ad Boosting is coming soon"
+                      title="Free Bump Ad is temporarily disabled (Coming Soon)"
                       className="px-3.5 py-2 bg-gray-100 text-gray-400 border border-gray-200 rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-not-allowed select-none"
                     >
-                      <Sparkles className="w-3.5 h-3.5" />
-                      Boost Ad (Coming Soon)
+                      Bump Ad (Coming Soon)
                     </button>
-
-                    {ad.status === "Available" && (
-                      <button
-                        type="button"
-                        onClick={() => handleBumpAd(ad)}
-                        className="px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-xs font-bold transition"
-                        title="Free 7-day bump back to top of feed"
-                      >
-                        Bump ↑
-                      </button>
-                    )}
 
                     <button
                       type="button"

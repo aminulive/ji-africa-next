@@ -63,6 +63,7 @@ export default function LoginPage() {
 
   // Verification & Password Reset States
   const [otpCode, setOtpCode] = useState('');
+  const [referralCode, setReferralCode] = useState('');
   const [resetStep, setResetStep] = useState<'request' | 'confirm'>('request');
   const [newPassword, setNewPassword] = useState('');
 
@@ -82,6 +83,15 @@ export default function LoginPage() {
     const params = new URLSearchParams(window.location.search);
     if (params.get('mode') === 'register') {
       setMode('register');
+    }
+    const urlRef = (params.get('ref') || '').trim();
+    if (urlRef) {
+      setReferralCode(urlRef);
+      localStorage.setItem('ji_ref_code', urlRef);
+      setMode('register');
+    } else {
+      const savedRef = localStorage.getItem('ji_ref_code') || '';
+      if (savedRef) setReferralCode(savedRef);
     }
     try {
       const rawDraft = localStorage.getItem('ji_flyer_draft');
@@ -116,7 +126,7 @@ export default function LoginPage() {
       const res = await fetch(`${API_URL}/auth/google`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ credential: credentialResponse.credential }),
+        body: JSON.stringify({ credential: credentialResponse.credential, referral_code: referralCode || undefined }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -198,6 +208,7 @@ export default function LoginPage() {
         formData.append('phone', phone);
         formData.append('password', password);
         formData.append('accepted_terms', 'true');
+        if (referralCode.trim()) formData.append('referral_code', referralCode.trim());
         formData.append('newsletter_subscribed', newsletterSubscribed ? 'true' : 'false');
         if (jiTrustEnrolled) {
           if (!jiTrustTermsAccepted) {
@@ -236,6 +247,7 @@ export default function LoginPage() {
         const data = await res.json();
 
         if (res.ok) {
+          localStorage.removeItem('ji_ref_code');
           localStorage.setItem('ji_user', JSON.stringify(data.user));
           localStorage.setItem('ji_token', data.token);
           window.dispatchEvent(new Event('ji_user_updated'));
@@ -354,6 +366,14 @@ export default function LoginPage() {
             >
               Create Account
             </button>
+          </div>
+        )}
+
+        {mode === 'register' && referralCode && (
+          <div className="mb-4 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-bold flex items-center justify-between gap-2">
+            <span>
+              🎁 Invited via referral code <strong>{referralCode}</strong> — verify your email after signup to gift your friend a Free Ad Boost!
+            </span>
           </div>
         )}
 
