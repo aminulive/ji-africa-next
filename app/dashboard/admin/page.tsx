@@ -1,6 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
+import {
+  useState,
+  useEffect,
+  useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -26,6 +29,10 @@ import {
   Megaphone,
   Send,
   Download,
+  Eye,
+  X,
+  ArrowLeft as ArrowLeftIcon,
+  ArrowRight,
 } from 'lucide-react';
 
 const API_URL = 'https://ji-africa-backend.onrender.com/api';
@@ -57,12 +64,20 @@ export default function AdminDashboardPage() {
     subscribers: any[];
     campaigns: any[];
     hotDeals: any[];
+    availableAds: any[];
   }>({
     stats: { totalActive: 0, fromSignup: 0, fromFooter: 0, verifiedSellers: 0 },
     subscribers: [],
     campaigns: [],
     hotDeals: [],
+    availableAds: [],
   });
+  const [selectedCampaignDeals, setSelectedCampaignDeals] = useState<any[]>([]);
+  const [adToAddId, setAdToAddId] = useState('');
+  const [editableRecipients, setEditableRecipients] = useState<string[]>([]);
+  const [newRecipientInput, setNewRecipientInput] = useState('');
+  const [saveNewToDb, setSaveNewToDb] = useState(true);
+  const [showEmailPreview, setShowEmailPreview] = useState(false);
   const [campaignSubject, setCampaignSubject] = useState("This Week's Hot Deals on ji.africa");
   const [campaignIntro, setCampaignIntro] = useState(
     "Hello from ji.africa!\n\nHere are the top trending and verified deals across Nigeria this week. Tap any item below to message the seller directly on WhatsApp or pay safely with JI Trust Escrow:"
@@ -71,6 +86,20 @@ export default function AdminDashboardPage() {
   const [includeHotDeals, setIncludeHotDeals] = useState(true);
   const [testRecipientEmail, setTestRecipientEmail] = useState('');
   const [sendingCampaign, setSendingCampaign] = useState(false);
+
+  const computeSegmentEmails = useCallback(
+    (subs: any[], seg: 'all' | 'verified_sellers' | 'buyers') => {
+      const active = (subs || []).filter((s) => s.is_active !== false);
+      if (seg === 'verified_sellers') {
+        return active.filter((s) => Boolean(s.is_verified_seller)).map((s) => String(s.email).toLowerCase());
+      }
+      if (seg === 'buyers') {
+        return active.filter((s) => !s.is_verified_seller).map((s) => String(s.email).toLowerCase());
+      }
+      return active.map((s) => String(s.email).toLowerCase());
+    },
+    []
+  );
   const [trustOrders, setTrustOrders] = useState<any[]>([]);
   const [trustSellers, setTrustSellers] = useState<any[]>([]);
   const [adminReviews, setAdminReviews] = useState<any[]>([]);
@@ -200,12 +229,17 @@ export default function AdminDashboardPage() {
       }
       if (newsRes?.ok) {
         const nJson = await newsRes.json();
+        const subs = nJson.subscribers || [];
+        const deals = nJson.hotDeals || [];
         setNewsletterData({
           stats: nJson.stats || { totalActive: 0, fromSignup: 0, fromFooter: 0, verifiedSellers: 0 },
-          subscribers: nJson.subscribers || [],
+          subscribers: subs,
           campaigns: nJson.campaigns || [],
-          hotDeals: nJson.hotDeals || [],
+          hotDeals: deals,
+          availableAds: nJson.availableAds || deals,
         });
+        setSelectedCampaignDeals((prev) => (prev.length > 0 ? prev : deals));
+        setEditableRecipients(computeSegmentEmails(subs, campaignSegment));
       }
     } catch (err) {
       console.error('Admin load error:', err);
@@ -1969,13 +2003,22 @@ export default function AdminDashboardPage() {
             </div>
           </div>
 
-          {/* Campaign Composer */}
-          <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm space-y-4">
-            <div>
-              <h3 className="font-black text-gray-900 text-base">Send Weekly Hot Deals Campaign</h3>
-              <p className="text-xs text-gray-500 mt-0.5">
-                Broadcasts mobile-ready emails via Resend with automatic 1-click unsubscribe links.
-              </p>
+          {/* Campaign Composer with Editable Featured Listings & Editable Recipients */}
+          <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm space-y-5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h3 className="font-black text-gray-900 text-base">Compose &amp; Broadcast Newsletter Campaign</h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Customize featured deals, edit the exact recipient email list, preview the HTML email, and send.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowEmailPreview(true)}
+                className="px-3.5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-900 rounded-xl text-xs font-black flex items-center gap-1.5"
+              >
+                <Eye className="w-3.5 h-3.5 text-brand-orange" /> Preview Email
+              </button>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -1994,11 +2037,15 @@ export default function AdminDashboardPage() {
 
               <div>
                 <label className="block text-xs font-bold text-gray-700 mb-1.5">
-                  Target Audience
+                  Audience Preset
                 </label>
                 <select
                   value={campaignSegment}
-                  onChange={(e) => setCampaignSegment(e.target.value as any)}
+                  onChange={(e) => {
+                    const nextSeg = e.target.value as 'all' | 'verified_sellers' | 'buyers';
+                    setCampaignSegment(nextSeg);
+                    setEditableRecipients(computeSegmentEmails(newsletterData.subscribers, nextSeg));
+                  }}
                   className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-sm bg-white outline-none focus:border-brand-orange"
                 >
                   <option value="all">All Active Subscribers ({newsletterData.stats.totalActive})</option>
@@ -2013,37 +2060,239 @@ export default function AdminDashboardPage() {
                 Campaign Intro Message *
               </label>
               <textarea
-                rows={4}
+                rows={3}
                 value={campaignIntro}
                 onChange={(e) => setCampaignIntro(e.target.value)}
                 className="w-full px-3.5 py-2.5 border border-gray-300 rounded-xl text-xs leading-relaxed outline-none focus:border-brand-orange"
               />
             </div>
 
-            <label className="flex items-center gap-2.5 p-3 rounded-xl bg-orange-50/60 border border-orange-200/80 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={includeHotDeals}
-                onChange={(e) => setIncludeHotDeals(e.target.checked)}
-                className="w-4 h-4 accent-brand-orange"
-              />
-              <span className="text-xs font-bold text-gray-900">
-                Auto-attach this week&apos;s Top {newsletterData.hotDeals.length} VIP &amp; Trending Deals (with photos, ₦ prices &amp; direct links)
-              </span>
-            </label>
+            {/* EDITABLE FEATURED ITEMS / ADS */}
+            <div className="p-4 rounded-2xl bg-orange-50/50 border border-orange-200/80 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <label className="flex items-center gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={includeHotDeals}
+                    onChange={(e) => setIncludeHotDeals(e.target.checked)}
+                    className="w-4 h-4 accent-brand-orange"
+                  />
+                  <span className="text-xs font-black text-gray-900">
+                    Include Featured Deals ({selectedCampaignDeals.length} selected)
+                  </span>
+                </label>
 
-            {includeHotDeals && newsletterData.hotDeals.length > 0 && (
-              <div className="grid grid-cols-2 sm:grid-cols-6 gap-2.5 pt-1">
-                {newsletterData.hotDeals.map((deal) => (
-                  <div key={deal.id} className="p-2 rounded-xl border border-gray-200 bg-gray-50/60">
-                    <p className="text-[11px] font-bold text-gray-800 truncate">{deal.title}</p>
-                    <p className="text-xs font-black text-brand-orange mt-0.5">
-                      ₦{Number(deal.price || 0).toLocaleString('en-NG')}
-                    </p>
+                {includeHotDeals && (
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={adToAddId}
+                      onChange={(e) => setAdToAddId(e.target.value)}
+                      className="px-2.5 py-1.5 border border-gray-300 rounded-xl text-xs bg-white outline-none focus:border-brand-orange max-w-[230px]"
+                    >
+                      <option value="">+ Select listing to add...</option>
+                      {newsletterData.availableAds
+                        .filter((a) => !selectedCampaignDeals.some((s) => Number(s.id) === Number(a.id)))
+                        .map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.title} (₦{Number(a.price || 0).toLocaleString('en-NG')})
+                          </option>
+                        ))}
+                    </select>
+                    <button
+                      type="button"
+                      disabled={!adToAddId}
+                      onClick={() => {
+                        const found = newsletterData.availableAds.find(
+                          (a) => Number(a.id) === Number(adToAddId)
+                        );
+                        if (found) {
+                          setSelectedCampaignDeals((prev) => [...prev, found]);
+                          setAdToAddId('');
+                        }
+                      }}
+                      className="px-3 py-1.5 bg-gray-900 text-white rounded-xl text-xs font-black flex items-center gap-1 disabled:opacity-40"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Add
+                    </button>
                   </div>
-                ))}
+                )}
               </div>
-            )}
+
+              {includeHotDeals && (
+                selectedCampaignDeals.length === 0 ? (
+                  <p className="text-xs text-gray-500 py-2">
+                    No deals selected. Pick a listing from the dropdown above to attach it to this email.
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                    {selectedCampaignDeals.map((deal, idx) => (
+                      <div
+                        key={deal.id}
+                        className="p-2.5 rounded-xl border border-gray-200 bg-white flex items-center justify-between gap-2 shadow-2xs"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-gray-900 truncate">{deal.title}</p>
+                          <p className="text-xs font-black text-brand-orange">
+                            ₦{Number(deal.price || 0).toLocaleString('en-NG')}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            disabled={idx === 0}
+                            title="Move earlier"
+                            onClick={() => {
+                              if (idx === 0) return;
+                              const copy = [...selectedCampaignDeals];
+                              [copy[idx - 1], copy[idx]] = [copy[idx], copy[idx - 1]];
+                              setSelectedCampaignDeals(copy);
+                            }}
+                            className="p-1 rounded bg-gray-100 hover:bg-gray-200 text-gray-700 disabled:opacity-30"
+                          >
+                            <ArrowLeftIcon className="w-3 h-3" />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={idx === selectedCampaignDeals.length - 1}
+                            title="Move later"
+                            onClick={() => {
+                              if (idx === selectedCampaignDeals.length - 1) return;
+                              const copy = [...selectedCampaignDeals];
+                              [copy[idx + 1], copy[idx]] = [copy[idx], copy[idx + 1]];
+                              setSelectedCampaignDeals(copy);
+                            }}
+                            className="p-1 rounded bg-gray-100 hover:bg-gray-200 text-gray-700 disabled:opacity-30"
+                          >
+                            <ArrowRight className="w-3 h-3" />
+                          </button>
+                          <button
+                            type="button"
+                            title="Remove from newsletter"
+                            onClick={() =>
+                              setSelectedCampaignDeals((prev) =>
+                                prev.filter((item) => Number(item.id) !== Number(deal.id))
+                              )
+                            }
+                            className="p-1 rounded bg-red-50 hover:bg-red-100 text-red-700"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )
+              )}
+            </div>
+
+            {/* EDITABLE RECIPIENT EMAIL LIST */}
+            <div className="p-4 rounded-2xl bg-gray-50 border border-gray-200 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-xs font-black text-gray-900">
+                    Editable Recipient List ({editableRecipients.length} email{editableRecipients.length === 1 ? '' : 's'} will receive this campaign)
+                  </p>
+                  <p className="text-[11px] text-gray-500">
+                    Remove any address with &times; or add extra emails manually before sending.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setEditableRecipients(computeSegmentEmails(newsletterData.subscribers, campaignSegment))
+                  }
+                  className="text-[11px] font-black text-brand-orange hover:underline"
+                >
+                  Reset to Preset ({computeSegmentEmails(newsletterData.subscribers, campaignSegment).length})
+                </button>
+              </div>
+
+              {/* Add Email(s) Input */}
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  type="text"
+                  value={newRecipientInput}
+                  onChange={(e) => setNewRecipientInput(e.target.value)}
+                  placeholder="Add email(s) separated by comma or space..."
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-xl text-xs bg-white outline-none focus:border-brand-orange"
+                />
+                <label className="inline-flex items-center gap-1.5 text-[11px] font-bold text-gray-700 px-2">
+                  <input
+                    type="checkbox"
+                    checked={saveNewToDb}
+                    onChange={(e) => setSaveNewToDb(e.target.checked)}
+                    className="accent-brand-orange"
+                  />
+                  Save to subscribers
+                </label>
+                <button
+                  type="button"
+                  disabled={!newRecipientInput.trim()}
+                  onClick={async () => {
+                    const parsed = Array.from(
+                      new Set(
+                        newRecipientInput
+                          .split(/[\s,;]+/)
+                          .map((e) => e.trim().toLowerCase())
+                          .filter((e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e))
+                      )
+                    );
+                    if (parsed.length === 0) {
+                      notify('Enter at least one valid email address');
+                      return;
+                    }
+                    setEditableRecipients((prev) => Array.from(new Set([...prev, ...parsed])));
+                    setNewRecipientInput('');
+                    if (saveNewToDb) {
+                      try {
+                        const res = await fetch(`${API_URL}/newsletter/admin/subscribers`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+                          body: JSON.stringify({ emails: parsed }),
+                        });
+                        if (res.ok) {
+                          notify(`Added ${parsed.length} email(s) & saved to subscriber list`);
+                          loadAdminData();
+                        }
+                      } catch {}
+                    } else {
+                      notify(`Added ${parsed.length} email(s) to this send list`);
+                    }
+                  }}
+                  className="px-4 py-2 bg-gray-900 hover:bg-gray-800 text-white rounded-xl text-xs font-black flex items-center justify-center gap-1 disabled:opacity-40"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Add Email
+                </button>
+              </div>
+
+              {/* Recipient Chips */}
+              {editableRecipients.length === 0 ? (
+                <p className="text-xs text-red-600 font-bold py-2">
+                  Recipient list is empty. Add at least one email address above to broadcast.
+                </p>
+              ) : (
+                <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto p-2.5 bg-white rounded-xl border border-gray-200">
+                  {editableRecipients.map((em) => (
+                    <span
+                      key={em}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-orange-50 border border-orange-200 text-[11px] font-bold text-gray-800"
+                    >
+                      <span>{em}</span>
+                      <button
+                        type="button"
+                        aria-label={`Remove ${em}`}
+                        onClick={() =>
+                          setEditableRecipients((prev) => prev.filter((item) => item !== em))
+                        }
+                        className="text-gray-500 hover:text-red-600"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
 
             <div className="pt-3 border-t border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               {/* Test Preview */}
@@ -2069,6 +2318,7 @@ export default function AdminDashboardPage() {
                           intro_text: campaignIntro,
                           segment: campaignSegment,
                           include_deals: includeHotDeals,
+                          selected_ad_ids: includeHotDeals ? selectedCampaignDeals.map((d) => d.id) : [],
                           test_email: testRecipientEmail.trim(),
                         }),
                       });
@@ -2089,11 +2339,16 @@ export default function AdminDashboardPage() {
               {/* Live Broadcast */}
               <button
                 type="button"
-                disabled={sendingCampaign || !campaignSubject.trim() || !campaignIntro.trim()}
+                disabled={
+                  sendingCampaign ||
+                  !campaignSubject.trim() ||
+                  !campaignIntro.trim() ||
+                  editableRecipients.length === 0
+                }
                 onClick={async () => {
                   if (
                     !confirm(
-                      `Broadcast this newsletter campaign now to segment "${campaignSegment}"?`
+                      `Broadcast this newsletter campaign now to ${editableRecipients.length} selected recipient(s)?`
                     )
                   )
                     return;
@@ -2105,8 +2360,10 @@ export default function AdminDashboardPage() {
                       body: JSON.stringify({
                         subject: campaignSubject,
                         intro_text: campaignIntro,
-                        segment: campaignSegment,
+                        segment: 'custom',
                         include_deals: includeHotDeals,
+                        selected_ad_ids: includeHotDeals ? selectedCampaignDeals.map((d) => d.id) : [],
+                        custom_recipients: editableRecipients,
                       }),
                     });
                     const data = await res.json().catch(() => ({}));
@@ -2129,12 +2386,12 @@ export default function AdminDashboardPage() {
                 ) : (
                   <Send className="w-4 h-4" />
                 )}
-                Broadcast Campaign Now
+                Broadcast to {editableRecipients.length} Recipient(s)
               </button>
             </div>
           </div>
 
-          {/* Campaign Logs & Recent Subscribers */}
+          {/* Campaign Logs & Manageable Subscribers Database */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
               <div className="p-4 border-b border-gray-100">
@@ -2142,7 +2399,7 @@ export default function AdminDashboardPage() {
               </div>
               {newsletterData.campaigns.length === 0 ? (
                 <div className="p-8 text-center text-xs text-gray-500">
-                  No campaigns broadcast yet. Send a test email above to preview!
+                  No campaigns broadcast yet.
                 </div>
               ) : (
                 <div className="divide-y divide-gray-100">
@@ -2151,7 +2408,6 @@ export default function AdminDashboardPage() {
                       <div>
                         <p className="text-xs font-black text-gray-900">{c.subject}</p>
                         <p className="text-[11px] text-gray-500 mt-0.5">
-                          Segment: <strong>{c.segment}</strong> •{' '}
                           {new Date(c.created_at).toLocaleDateString('en-GB')}
                         </p>
                       </div>
@@ -2166,7 +2422,7 @@ export default function AdminDashboardPage() {
 
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
               <div className="p-4 border-b border-gray-100">
-                <h3 className="font-bold text-gray-900 text-sm">Latest Opt-In Subscribers</h3>
+                <h3 className="font-bold text-gray-900 text-sm">Saved Subscribers Database</h3>
               </div>
               {newsletterData.subscribers.length === 0 ? (
                 <div className="p-8 text-center text-xs text-gray-500">
@@ -2188,6 +2444,24 @@ export default function AdminDashboardPage() {
                         >
                           {s.is_active ? 'Active' : 'Unsubscribed'}
                         </span>
+                        <button
+                          type="button"
+                          title="Delete subscriber"
+                          onClick={async () => {
+                            if (!confirm(`Remove ${s.email} permanently from subscriber list?`)) return;
+                            const res = await fetch(`${API_URL}/newsletter/admin/subscribers/${s.id}`, {
+                              method: 'DELETE',
+                              headers: getAuthHeaders(),
+                            });
+                            if (res.ok) {
+                              notify('Subscriber removed');
+                              loadAdminData();
+                            }
+                          }}
+                          className="p-1 rounded bg-red-50 hover:bg-red-100 text-red-700"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -2195,6 +2469,54 @@ export default function AdminDashboardPage() {
               )}
             </div>
           </div>
+
+          {/* LIVE EMAIL PREVIEW MODAL */}
+          {showEmailPreview && (
+            <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+              <div className="bg-white rounded-2xl max-w-lg w-full max-h-[85vh] flex flex-col overflow-hidden shadow-2xl">
+                <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+                  <h3 className="text-sm font-black text-gray-900">Mobile Email Preview</h3>
+                  <button
+                    type="button"
+                    onClick={() => setShowEmailPreview(false)}
+                    className="p-1 text-gray-500 hover:text-gray-900"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                <div className="p-4 overflow-y-auto bg-gray-50 space-y-4">
+                  <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                    <div className="bg-brand-orange p-5 text-white">
+                      <p className="text-base font-black">ji.africa</p>
+                      <h4 className="text-lg font-extrabold mt-1 leading-snug">{campaignSubject}</h4>
+                    </div>
+                    <div className="p-5 space-y-4">
+                      <p className="text-xs text-gray-700 whitespace-pre-line leading-relaxed">
+                        {campaignIntro}
+                      </p>
+                      {includeHotDeals &&
+                        selectedCampaignDeals.map((d) => (
+                          <div
+                            key={d.id}
+                            className="p-3.5 rounded-xl border border-gray-200 flex items-center justify-between gap-3"
+                          >
+                            <div className="min-w-0">
+                              <p className="text-xs font-black text-gray-900 truncate">{d.title}</p>
+                              <p className="text-sm font-black text-brand-orange mt-0.5">
+                                ₦{Number(d.price || 0).toLocaleString('en-NG')}
+                              </p>
+                            </div>
+                            <span className="px-3 py-1.5 bg-gray-900 text-white rounded-lg text-[11px] font-bold shrink-0">
+                              View Deal &rarr;
+                            </span>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

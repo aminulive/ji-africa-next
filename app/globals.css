@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
   --color-brand-orange: #C2410C;
@@ -17,7 +18,8 @@ html.dark body {
   color: #f4f4f5;
 }
 
-html.dark .bg-white {
+html.dark .bg-white,
+html.dark .bg-white\/95 {
   background-color: #18181b !important;
 }
 

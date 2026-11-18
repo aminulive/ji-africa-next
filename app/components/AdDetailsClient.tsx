@@ -549,7 +549,7 @@ export default function AdDetailsClient({
           </>
         )}
         <ChevronRight className="w-3 h-3" />
-        <span className="text-gray-800 dark:text-gray-200 truncate max-w-[240px] sm:max-w-md">
+        <span className="text-gray-900 dark:text-gray-100 font-bold truncate max-w-[240px] sm:max-w-md">
           {ad.title}
         </span>
       </div>
@@ -609,10 +609,13 @@ export default function AdDetailsClient({
           </div>
 
           {/* Mobile Sticky Price & Horizontal 3-Button Contact Bar */}
-          <div className="lg:hidden sticky top-[62px] z-30 bg-white/95 backdrop-blur rounded-xl border border-gray-200 p-3 shadow-md space-y-2.5">
+          <div className="lg:hidden sticky top-[62px] z-30 bg-white dark:bg-zinc-900 backdrop-blur rounded-xl border border-gray-200 dark:border-zinc-800 p-3.5 shadow-md space-y-2.5">
+            <h1 className="text-sm font-black text-gray-900 dark:text-white leading-snug line-clamp-2">
+              {ad.title}
+            </h1>
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-baseline gap-2 min-w-0">
-                <span className="text-xl font-black text-gray-900 truncate">
+                <span className="text-2xl font-black text-brand-orange dark:text-orange-400 tracking-tight truncate">
                   {formatNaira(ad.price)}
                 </span>
                 {ad.is_negotiable && (
