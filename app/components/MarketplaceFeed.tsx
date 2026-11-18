@@ -17,6 +17,8 @@ import {
   ChevronDown,
   ArrowLeft,
   ShieldCheck,
+  BellPlus,
+  CheckCircle2,
 } from 'lucide-react';
 import HeroBanner from './HeroBanner';
 import RecentlyViewedStrip from './RecentlyViewedStrip';
@@ -271,6 +273,47 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
     }
   };
   const [showLocationModal, setShowLocationModal] = useState(false);
+  const [savingAlert, setSavingAlert] = useState(false);
+  const [alertSavedToast, setAlertSavedToast] = useState('');
+
+  const handleSaveSearchAlert = async () => {
+    const token = localStorage.getItem('ji_token');
+    if (!token) {
+      router.push('/login');
+      return;
+    }
+    setSavingAlert(true);
+    try {
+      const res = await fetch(`${API_URL}/users/saved-searches`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          query: searchQuery,
+          category_id: selectedCategory !== 'all' ? selectedCategory : null,
+          subcategory: selectedSubcategory || null,
+          location: locationLabel !== 'All Nigeria' ? locationLabel : null,
+          max_price: maxPrice || null,
+          email_enabled: true,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setAlertSavedToast(data.message || 'Search alert saved! We will notify you when matching items drop.');
+        setTimeout(() => setAlertSavedToast(''), 4500);
+      } else {
+        setAlertSavedToast(data.error || 'Could not save search alert');
+        setTimeout(() => setAlertSavedToast(''), 4000);
+      }
+    } catch {
+      setAlertSavedToast('Network error saving search alert');
+      setTimeout(() => setAlertSavedToast(''), 4000);
+    } finally {
+      setSavingAlert(false);
+    }
+  };
   const [recentlyViewed, setRecentlyViewed] = useState<any[]>([]);
 
   useEffect(() => {
