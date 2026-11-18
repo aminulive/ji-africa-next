@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense, useMemo } from 'react';
+import { useState, useEffect, Suspense, useMemo, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Loader2,
@@ -466,8 +466,33 @@ function SellFormContent() {
   };
 
   // --- SUBMIT AD ---
+  const submittingRef = useRef(false);
+  const [redirectCountdown, setRedirectCountdown] = useState<number | null>(null);
+  const [autoRedirectPaused, setAutoRedirectPaused] = useState(false);
+
+  useEffect(() => {
+    if (!publishedShareAd || autoRedirectPaused || redirectCountdown === null) return;
+    if (redirectCountdown <= 0) {
+      const targetUrl = publishedShareAd.id
+        ? `/ad/${publishedShareAd.id}`
+        : '/dashboard/seller';
+      router.push(targetUrl);
+      const fallbackTimer = setTimeout(() => {
+        if (typeof window !== 'undefined' && window.location.pathname === '/sell') {
+          window.location.href = targetUrl;
+        }
+      }, 650);
+      return () => clearTimeout(fallbackTimer);
+    }
+    const timer = setTimeout(() => {
+      setRedirectCountdown((prev) => (prev !== null ? prev - 1 : null));
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [publishedShareAd, autoRedirectPaused, redirectCountdown, router]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submittingRef.current || loading) return;
     setError('');
 
     if (!categoryId || !regionId) {
@@ -482,11 +507,12 @@ function SellFormContent() {
       return;
     }
 
+    submittingRef.current = true;
     setLoading(true);
     const token = localStorage.getItem('ji_token');
 
     const formData = new FormData();
-    formData.append('title', title);
+    formData.append('title', title.trim());
     formData.append('category_id', categoryId);
     formData.append('subcategory', subcategory || '');
     formData.append('sub_subcategory', subSubcategory || '');
@@ -496,7 +522,7 @@ function SellFormContent() {
     formData.append('condition', condition);
     formData.append('price', price);
     formData.append('delivery_option', delivery);
-    formData.append('description', description);
+    formData.append('description', description.trim());
     formData.append('youtube_link', externalLink);
     formData.append('status', status);
     formData.append('stock_quantity', stockQuantity.trim());
@@ -534,17 +560,20 @@ function SellFormContent() {
         } else {
           const newId = created.adId || created.id || '';
           let previewImg = '';
-          if (selectedFiles[0]) {
-            previewImg = URL.createObjectURL(selectedFiles[0]);
-          }
+          try {
+            if (selectedFiles[0]) {
+              previewImg = URL.createObjectURL(selectedFiles[0]);
+            }
+          } catch {}
           let userPhone = '';
           try {
             const u = JSON.parse(localStorage.getItem('ji_user') || '{}');
             userPhone = u?.phone || '';
           } catch {}
-          setPublishedShareAd({
+
+          const snapshot = {
             id: newId,
-            title,
+            title: title.trim(),
             price,
             condition,
             shop_address: displayLocation,
@@ -552,7 +581,27 @@ function SellFormContent() {
             ji_trust_enabled: jiTrustEnabled,
             seller_phone: userPhone,
             image: previewImg,
-          });
+          };
+
+          // Clear form fields immediately so double-submission is impossible
+          setTitle('');
+          setPrice('');
+          setDescription('');
+          setSelectedFiles([]);
+          setBrand('');
+          setModel('');
+          setItemType('');
+          setStockQuantity('');
+          setExternalLink('');
+          setSmartCaption('');
+          setSmartParsedNote('');
+
+          setPublishedShareAd(snapshot);
+          setAutoRedirectPaused(false);
+          setRedirectCountdown(5);
+          if (typeof window !== 'undefined') {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }
         }
       } else {
         const errData = await res.json().catch(() => ({}));
@@ -564,6 +613,7 @@ function SellFormContent() {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } finally {
       setLoading(false);
+      submittingRef.current = false;
     }
   };
 
@@ -571,6 +621,118 @@ function SellFormContent() {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
         <Loader2 className="w-8 h-8 animate-spin text-brand-orange" />
+      </div>
+    );
+  }
+
+  // Full-Page Confirmation Screen on New Ad Publish (Prevents mobile confusion & duplicate submits)
+  if (publishedShareAd) {
+    const adUrl = publishedShareAd.id
+      ? `https://www.ji.africa/ad/${publishedShareAd.id}`
+      : 'https://www.ji.africa';
+    const waShareText = `Check out my advert on *ji.africa*:\n*${publishedShareAd.title}* — ₦${Number(
+      publishedShareAd.price || 0
+    ).toLocaleString('en-NG')}\nLocation: ${
+      publishedShareAd.shop_address || 'Nigeria'
+    }\n${adUrl}`;
+
+    return (
+      <div className="max-w-lg mx-auto py-8 px-4">
+        <div className="bg-white rounded-2xl border border-emerald-200 shadow-lg overflow-hidden">
+          <div className="bg-emerald-600 text-white p-6 text-center space-y-2">
+            <div className="w-14 h-14 rounded-full bg-white/20 mx-auto flex items-center justify-center">
+              <Check className="w-8 h-8 text-white" />
+            </div>
+            <h1 className="text-xl font-black">Advert Published &amp; Live!</h1>
+            <p className="text-xs text-emerald-100">
+              Your photos have been watermarked and your listing is now visible to buyers on ji.africa.
+            </p>
+          </div>
+
+          <div className="p-5 space-y-4">
+            <div className="flex items-center gap-3.5 p-3.5 bg-gray-50 border border-gray-200 rounded-xl">
+              {publishedShareAd.image && (
+                <img
+                  src={publishedShareAd.image}
+                  alt={publishedShareAd.title}
+                  className="w-16 h-16 rounded-lg object-cover border border-gray-200 shrink-0"
+                />
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-black text-gray-900 truncate">
+                  {publishedShareAd.title}
+                </p>
+                <p className="text-base font-black text-brand-orange mt-0.5">
+                  ₦{Number(publishedShareAd.price || 0).toLocaleString('en-NG')}
+                </p>
+                <p className="text-[11px] text-gray-500 truncate mt-0.5">
+                  {publishedShareAd.shop_address || 'Nigeria'} • {publishedShareAd.condition}
+                </p>
+              </div>
+            </div>
+
+            {!autoRedirectPaused && redirectCountdown !== null && redirectCountdown > 0 && (
+              <div className="flex items-center justify-between bg-orange-50 border border-orange-200 rounded-xl px-3.5 py-2.5 text-xs">
+                <span className="font-semibold text-gray-700">
+                  Opening your live advert in{' '}
+                  <strong className="text-brand-orange">{redirectCountdown}s</strong>...
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setAutoRedirectPaused(true)}
+                  className="font-black text-brand-orange hover:underline"
+                >
+                  Stay here
+                </button>
+              </div>
+            )}
+
+            <div className="space-y-2.5 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  const target = publishedShareAd.id
+                    ? `/ad/${publishedShareAd.id}`
+                    : '/dashboard/seller';
+                  router.push(target);
+                }}
+                className="w-full py-3.5 bg-brand-orange hover:bg-orange-700 text-white rounded-xl text-sm font-black shadow-md transition"
+              >
+                View Your Live Advert
+              </button>
+
+              <a
+                href={`https://wa.me/?text=${encodeURIComponent(waShareText)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setAutoRedirectPaused(true)}
+                className="w-full py-3 bg-[#25D366] hover:bg-[#128C7E] text-white rounded-xl text-xs font-black flex items-center justify-center gap-2 transition"
+              >
+                Share Advert on WhatsApp
+              </a>
+
+              <div className="grid grid-cols-2 gap-2.5 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPublishedShareAd(null);
+                    setRedirectCountdown(null);
+                  }}
+                  className="py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-xl text-xs font-bold transition"
+                >
+                  Post Another Ad
+                </button>
+                <button
+                  type="button"
+                  onClick={() => router.push('/dashboard/seller')}
+                  className="py-2.5 bg-gray-900 hover:bg-gray-800 text-white rounded-xl text-xs font-bold transition"
+                >
+                  Seller Dashboard
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -591,6 +753,21 @@ function SellFormContent() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-6 pb-20">
+      {/* Full-Screen Publishing Progress Overlay for Mobile & Desktop */}
+      {loading && (
+        <div className="fixed inset-0 bg-gray-900/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 text-center space-y-3 shadow-2xl border border-gray-200">
+            <Loader2 className="w-10 h-10 animate-spin text-brand-orange mx-auto" />
+            <h3 className="text-base font-black text-gray-900">
+              {isEdit ? 'Updating Your Advert...' : 'Publishing Your Advert...'}
+            </h3>
+            <p className="text-xs text-gray-500 leading-relaxed">
+              Uploading &amp; watermarking your photos. Please wait a moment and do not tap back.
+            </p>
+          </div>
+        </div>
+      )}
+
       <h1 className="text-center font-black text-2xl text-gray-900">
         {isEdit ? 'Edit Listing' : 'Post ad'}
       </h1>
