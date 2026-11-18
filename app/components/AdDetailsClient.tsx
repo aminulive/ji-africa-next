@@ -183,6 +183,38 @@ export default function AdDetailsClient({
     return () => window.removeEventListener('ji_wishlist_updated', syncSaved);
   }, [ad.id]);
 
+  const [startingChat, setStartingChat] = useState(false);
+
+  const handleStartInAppChat = async () => {
+    const token = localStorage.getItem('ji_token');
+    if (!token || !currentUser) {
+      localStorage.setItem('ji_redirect_after_login', `/ad/${ad.id}`);
+      router.push('/login');
+      return;
+    }
+    setStartingChat(true);
+    try {
+      const res = await fetch(`${API_URL}/chat/threads/start`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ ad_id: Number(ad.id) }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.thread?.id) {
+        router.push(`/messages?thread=${data.thread.id}`);
+      } else {
+        notify(data.error || 'Could not open chat with seller');
+      }
+    } catch {
+      notify('Network error opening chat');
+    } finally {
+      setStartingChat(false);
+    }
+  };
+
   const handleToggleSave = () => {
     if (!currentUser) {
       router.push('/login');
@@ -702,6 +734,18 @@ export default function AdDetailsClient({
               </button>
             </div>
 
+            {!isUnavailable && !(currentUser && Number(currentUser.id || currentUser.userId || 0) > 0 && Number(currentUser.id || currentUser.userId) === Number(ad.user_id || ad.seller_id || ad.user?.id || 0)) && (
+              <button
+                type="button"
+                disabled={startingChat}
+                onClick={handleStartInAppChat}
+                className="w-full py-2 px-3 bg-orange-50 hover:bg-orange-100 border border-orange-200 text-brand-orange rounded-lg text-xs font-black flex items-center justify-center gap-1.5 transition"
+              >
+                <MessageCircle className="w-3.5 h-3.5" />
+                {startingChat ? 'Opening Chat...' : 'Chat in App & Request Custom Quote'}
+              </button>
+            )}
+
             {ad.ji_trust_enabled && !isUnavailable && (
               <div className="pt-1 flex items-center gap-2">
                 {currentUser && Number(currentUser.id || currentUser.userId || 0) > 0 && Number(currentUser.id || currentUser.userId) === Number(ad.user_id || ad.seller_id || ad.user?.id || 0) ? (
@@ -1039,6 +1083,18 @@ export default function AdDetailsClient({
               >
                 <PhoneCall className="w-4 h-4 text-brand-orange" /> Request Seller Callback
               </button>
+
+              {!isUnavailable && !(currentUser && Number(currentUser.id || currentUser.userId || 0) > 0 && Number(currentUser.id || currentUser.userId) === Number(ad.user_id || ad.seller_id || ad.user?.id || 0)) && (
+                <button
+                  type="button"
+                  disabled={startingChat}
+                  onClick={handleStartInAppChat}
+                  className="w-full bg-orange-50 hover:bg-orange-100 border border-orange-200 text-brand-orange py-3 rounded-xl text-xs font-black flex items-center justify-center gap-2 transition"
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  {startingChat ? 'Opening In-App Chat...' : 'Chat in App / Request Custom Quote'}
+                </button>
+              )}
 
               {!isUnavailable && formattedPhone && (
                 <div className="pt-1">

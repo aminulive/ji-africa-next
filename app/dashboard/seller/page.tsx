@@ -84,7 +84,9 @@ function SellerDashboardContent() {
 
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'listings' | 'trust' | 'offers' | 'callbacks' | 'payments' | 'requests' | 'my-requests'>('listings');
+  const [activeTab, setActiveTab] = useState<'listings' | 'trust' | 'messages' | 'offers' | 'callbacks' | 'payments' | 'requests' | 'my-requests'>('listings');
+  const [chatThreads, setChatThreads] = useState<any[]>([]);
+  const [chatQuotes, setChatQuotes] = useState<any[]>([]);
   const [buyerLeads, setBuyerLeads] = useState<any[]>([]);
   const [isVerifiedMerchant, setIsVerifiedMerchant] = useState(false);
   const [myRequests, setMyRequests] = useState<any[]>([]);
@@ -562,6 +564,15 @@ function SellerDashboardContent() {
           }`}
         >
           <ShieldCheck className="w-4 h-4" /> JI Trust Escrow ({trustOrders.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('messages')}
+          className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 transition ${
+            activeTab === 'messages' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100'
+          }`}
+        >
+          <MessageCircle className="w-4 h-4 text-brand-orange" /> Chats &amp; Quotes ({chatQuotes.length})
         </button>
         <button
           type="button"

@@ -39,9 +39,10 @@ function NavbarContent() {
   // Saved Wishlist Badge State
   const [wishlistCount, setWishlistCount] = useState(0);
 
-  // Notifications State
+  // Notifications & Chat Unread State
   const [notifications, setNotifications] = useState<any[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [chatUnreadCount, setChatUnreadCount] = useState(0);
   const [notifOpen, setNotifOpen] = useState(false);
   const notifMenuRef = useRef<HTMLDivElement>(null);
 
@@ -128,6 +129,23 @@ function NavbarContent() {
     } catch {}
   }, []);
 
+  const fetchChatUnread = useCallback(async () => {
+    const token = localStorage.getItem('ji_token');
+    if (!token) {
+      setChatUnreadCount(0);
+      return;
+    }
+    try {
+      const res = await fetch(`${API_URL}/chat/threads`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setChatUnreadCount(Number(data.unreadTotal) || 0);
+      }
+    } catch {}
+  }, []);
+
   const fetchNotifications = useCallback(async () => {
     const token = localStorage.getItem('ji_token');
     if (!token) {
@@ -156,6 +174,7 @@ function NavbarContent() {
         try {
           setUser(JSON.parse(storedUser));
           fetchNotifications();
+          fetchChatUnread();
           syncWishlistState(true);
         } catch {
           console.error('Failed to parse user session');
@@ -174,12 +193,14 @@ function NavbarContent() {
     window.addEventListener('ji_user_updated', syncUser);
     window.addEventListener('ji_wishlist_updated', onWishlistUpdated);
     window.addEventListener('ji_notifications_updated', fetchNotifications);
+    window.addEventListener('ji_chat_updated', fetchChatUnread);
     return () => {
       window.removeEventListener('ji_user_updated', syncUser);
       window.removeEventListener('ji_wishlist_updated', onWishlistUpdated);
       window.removeEventListener('ji_notifications_updated', fetchNotifications);
+      window.removeEventListener('ji_chat_updated', fetchChatUnread);
     };
-  }, [fetchNotifications, syncWishlistState]);
+  }, [fetchNotifications, fetchChatUnread, syncWishlistState]);
 
   const handleMarkNotificationsRead = async (notifId?: number) => {
     const token = localStorage.getItem('ji_token');
@@ -382,11 +403,16 @@ function NavbarContent() {
               </Link>
 
               <Link
-                href="/dashboard/seller"
-                className="text-gray-500 hover:text-brand-orange transition hidden sm:block"
-                title="Seller Inquiries & Ads"
+                href="/messages"
+                className="text-gray-500 hover:text-brand-orange transition relative flex items-center"
+                title="Messages & Custom Order Quotes"
               >
                 <MessageSquare className="w-[1.15rem] h-[1.15rem]" />
+                {chatUnreadCount > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 bg-brand-orange text-white text-[8px] font-bold min-w-[14px] h-3.5 px-1 rounded-full flex items-center justify-center border border-white">
+                    {chatUnreadCount > 9 ? "9+" : chatUnreadCount}
+                  </span>
+                )}
               </Link>
 
               {/* Live Notifications Bell & Popover */}
@@ -513,6 +539,20 @@ function NavbarContent() {
                               className="w-full text-left px-4 py-2.5 text-xs font-semibold text-gray-700 hover:bg-orange-50 hover:text-brand-orange flex items-center gap-2 transition"
                             >
                               <User className="w-4 h-4 text-gray-400" /> My Profile &amp; Shop
+                            </Link>
+                            <Link
+                              href="/messages"
+                              onClick={() => setMenuOpen(false)}
+                              className="w-full text-left px-4 py-2.5 text-xs font-semibold text-gray-700 hover:bg-orange-50 hover:text-brand-orange flex items-center justify-between transition"
+                            >
+                              <span className="flex items-center gap-2">
+                                <MessageSquare className="w-4 h-4 text-brand-orange" /> Messages &amp; Quotes
+                              </span>
+                              {chatUnreadCount > 0 && (
+                                <span className="px-1.5 py-0.5 rounded-full bg-brand-orange text-white text-[9px] font-black">
+                                  {chatUnreadCount}
+                                </span>
+                              )}
                             </Link>
                             <Link
                               href="/dashboard/seller"

@@ -56,9 +56,11 @@ function getAdThumb(ad: any) {
 export default function AdminDashboardPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<
-    'moderation' | 'users' | 'trust' | 'reviews' | 'categories' | 'blog' | 'messages' | 'requests' | 'newsletter'
+    'moderation' | 'users' | 'trust' | 'chat-quotes' | 'reviews' | 'categories' | 'blog' | 'messages' | 'requests' | 'newsletter'
   >('moderation');
   const [adminBuyerRequests, setAdminBuyerRequests] = useState<any[]>([]);
+  const [adminChatQuotes, setAdminChatQuotes] = useState<any[]>([]);
+  const [quoteAuditSearch, setQuoteAuditSearch] = useState('');
   const [newsletterData, setNewsletterData] = useState<{
     stats: { totalActive: number; fromSignup: number; fromFooter: number; verifiedSellers: number };
     subscribers: any[];
@@ -194,7 +196,7 @@ export default function AdminDashboardPage() {
 
     try {
       const headers = getAuthHeaders();
-      const [statsRes, adsRes, usersRes, catsRes, blogRes, msgRes, revRes, trustRes, reqRes, newsRes] = await Promise.all([
+      const [statsRes, adsRes, usersRes, catsRes, blogRes, msgRes, revRes, trustRes, reqRes, newsRes, chatQuotesRes] = await Promise.all([
         fetch(`${API_URL}/admin/stats`, { headers }),
         fetch(`${API_URL}/admin/ads?status=${adFilter}`, { headers }),
         fetch(`${API_URL}/admin/users?search=${encodeURIComponent(userSearch)}`, { headers }),
@@ -205,6 +207,7 @@ export default function AdminDashboardPage() {
         fetch(`${API_URL}/admin/trust`, { headers }),
         fetch(`${API_URL}/buyer-requests/admin/all`, { headers }),
         fetch(`${API_URL}/newsletter/admin/overview`, { headers }),
+        fetch(`${API_URL}/chat/admin/quotes`, { headers }),
       ]);
 
       if (statsRes.ok) setStats(await statsRes.json());
@@ -226,6 +229,10 @@ export default function AdminDashboardPage() {
       if (reqRes?.ok) {
         const rJson = await reqRes.json();
         setAdminBuyerRequests(rJson.requests || []);
+      }
+      if (chatQuotesRes?.ok) {
+        const cqJson = await chatQuotesRes.json();
+        setAdminChatQuotes(cqJson.quotes || []);
       }
       if (newsRes?.ok) {
         const nJson = await newsRes.json();
@@ -254,7 +261,7 @@ export default function AdminDashboardPage() {
       const tabParam = sp.get('tab');
       if (
         tabParam &&
-        ['moderation', 'users', 'trust', 'reviews', 'categories', 'blog', 'messages', 'requests', 'newsletter'].includes(tabParam)
+        ['moderation', 'users', 'trust', 'chat-quotes', 'reviews', 'categories', 'blog', 'messages', 'requests', 'newsletter'].includes(tabParam)
       ) {
         setActiveTab(tabParam as any);
       }
@@ -721,6 +728,17 @@ export default function AdminDashboardPage() {
           }`}
         >
           <Megaphone className="w-4 h-4" /> Buyer Requests ({adminBuyerRequests.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('chat-quotes')}
+          className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 transition ${
+            activeTab === 'chat-quotes'
+              ? 'bg-gray-900 text-white'
+              : 'text-gray-700 hover:bg-gray-100'
+          }`}
+        >
+          <ShieldCheck className="w-4 h-4 text-brand-orange" /> Chat Quotes &amp; Audit ({adminChatQuotes.length})
         </button>
         <button
           type="button"
@@ -1928,6 +1946,139 @@ export default function AdminDashboardPage() {
                 </div>
               </div>
             ))
+          )}
+        </div>
+      )}
+
+      {/* TAB: IN-CHAT CUSTOM QUOTES & DISPUTE AUDIT LEDGER */}
+      {activeTab === 'chat-quotes' && (
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="p-5 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="font-black text-gray-900 text-base">
+                In-Chat Custom Order Quotes &amp; Dispute Audit Ledger ({adminChatQuotes.length})
+              </h2>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Immutable record of all per-buyer price, quantity, and specification updates issued in chat for JI Trust funds disbursement &amp; dispute resolution.
+              </p>
+            </div>
+            <input
+              type="text"
+              value={quoteAuditSearch}
+              onChange={(e) => setQuoteAuditSearch(e.target.value)}
+              placeholder="Search quote #, escrow ref, buyer, seller..."
+              className="px-3.5 py-2 border border-gray-300 rounded-xl text-xs outline-none focus:border-brand-orange w-full sm:w-64"
+            />
+          </div>
+
+          {adminChatQuotes.length === 0 ? (
+            <div className="p-10 text-center text-xs text-gray-500">
+              No custom in-chat quotes recorded yet.
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-100">
+              {adminChatQuotes
+                .filter((q) => {
+                  if (!quoteAuditSearch.trim()) return true;
+                  const s = quoteAuditSearch.toLowerCase();
+                  return (
+                    String(q.id).includes(s) ||
+                    String(q.escrow_reference || '').toLowerCase().includes(s) ||
+                    String(q.ad_title || '').toLowerCase().includes(s) ||
+                    String(q.buyer_name || '').toLowerCase().includes(s) ||
+                    String(q.seller_name || '').toLowerCase().includes(s) ||
+                    String(q.seller_shop_name || '').toLowerCase().includes(s)
+                  );
+                })
+                .map((q) => (
+                  <div key={q.id} className="p-5 space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="px-2.5 py-1 rounded-lg bg-gray-900 text-white text-xs font-black">
+                          Quote #{q.id}
+                        </span>
+                        <span className="text-sm font-black text-gray-900">{q.ad_title}</span>
+                        <span
+                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                            q.status === 'paid_in_escrow'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : q.status === 'pending'
+                              ? 'bg-amber-100 text-amber-800'
+                              : 'bg-gray-100 text-gray-600'
+                          }`}
+                        >
+                          {q.status === 'paid_in_escrow' ? 'Paid in Escrow' : q.status}
+                        </span>
+                      </div>
+                      <span className="text-[11px] text-gray-400 font-semibold">
+                        {new Date(q.created_at).toLocaleString('en-GB')}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 rounded-xl bg-gray-50 border border-gray-200/80 text-xs">
+                      <div>
+                        <p className="text-[10px] font-bold uppercase text-gray-400">Agreed Quote Breakdown</p>
+                        <p className="font-black text-brand-orange text-sm mt-0.5">
+                          ₦{Number(q.total_amount || 0).toLocaleString('en-NG')}
+                        </p>
+                        <p className="text-[11px] text-gray-600">
+                          {q.quantity} × ₦{Number(q.unit_price || 0).toLocaleString('en-NG')} (Public Ad: ₦
+                          {Number(q.ad_public_price || 0).toLocaleString('en-NG')})
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-[10px] font-bold uppercase text-gray-400">Seller</p>
+                        <p className="font-bold text-gray-900 mt-0.5">
+                          {q.seller_shop_name || q.seller_name}
+                        </p>
+                        <p className="text-[11px] text-gray-600">
+                          {q.seller_email} • {q.seller_phone || 'No phone'}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-[10px] font-bold uppercase text-gray-400">Buyer</p>
+                        <p className="font-bold text-gray-900 mt-0.5">{q.buyer_name}</p>
+                        <p className="text-[11px] text-gray-600">
+                          {q.buyer_email} • {q.buyer_phone || 'No phone'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {(q.specifications || q.description) && (
+                      <div className="p-3 rounded-xl bg-orange-50/60 border border-orange-200/80 text-xs space-y-1">
+                        {q.specifications && (
+                          <p className="text-gray-800">
+                            <strong>Agreed Specifications:</strong> {q.specifications}
+                          </p>
+                        )}
+                        {q.description && (
+                          <p className="text-gray-800">
+                            <strong>Agreed Delivery / Terms:</strong> {q.description}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {q.escrow_reference && (
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs pt-1">
+                        <span className="font-bold text-emerald-700">
+                          Linked JI Trust Escrow: {q.escrow_reference} ({q.escrow_status || 'funded'}) • Net Seller Payout: ₦
+                          {Number(q.escrow_seller_payout || 0).toLocaleString('en-NG')}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab('trust')}
+                          className="text-xs font-black text-brand-orange hover:underline"
+                        >
+                          Open in JI Trust Tab &rarr;
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+            </div>
           )}
         </div>
       )}
