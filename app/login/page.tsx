@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -22,6 +22,7 @@ export default function LoginPage() {
   const router = useRouter();
   const [mode, setMode] = useState<'login' | 'register' | 'forgot' | 'verify'>('login');
   const [loading, setLoading] = useState(false);
+  const submittingRef = useRef(false);
   const [resendingCode, setResendingCode] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [error, setError] = useState('');
@@ -138,6 +139,7 @@ export default function LoginPage() {
       setError('Network error during Google sign-in.');
     } finally {
       setLoading(false);
+      submittingRef.current = false;
     }
   };
 
@@ -167,8 +169,19 @@ export default function LoginPage() {
     }
   };
 
+  const parseApiResponse = async (res: Response) => {
+    const raw = await res.text();
+    try {
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return { error: `Server returned an unexpected response (${res.status}). Please try again.` };
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submittingRef.current || loading) return;
+    submittingRef.current = true;
     setLoading(true);
     setError('');
     setSuccessMsg('');
@@ -244,7 +257,7 @@ export default function LoginPage() {
           method: 'POST',
           body: formData,
         });
-        const data = await res.json();
+        const data = await parseApiResponse(res);
 
         if (res.ok) {
           localStorage.removeItem('ji_ref_code');
@@ -685,7 +698,7 @@ export default function LoginPage() {
                       maxLength={10}
                       placeholder="10-Digit Account Number *"
                       value={payoutAccountNumber}
-                      onChange={(e) => setPayoutAccountNumber(e.target.value.replace(/D/g, ''))}
+                      onChange={(e) => setPayoutAccountNumber(e.target.value.replace(/\D/g, ''))}
                       className="w-full px-3 py-2 border border-emerald-200 rounded-lg text-xs bg-white focus:outline-none focus:border-emerald-600"
                     />
                     <input
