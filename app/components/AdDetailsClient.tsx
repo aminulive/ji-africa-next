@@ -1151,9 +1151,9 @@ export default function AdDetailsClient({
                   </div>
                 )}
 
-                {ad.status === "Sold" ? (
+                {isUnavailable ? (
                   <div className="w-full py-2.5 bg-gray-200 text-gray-700 rounded-xl text-xs font-black text-center uppercase tracking-wider">
-                    Item Marked as Sold
+                    Out of Stock / Unavailable
                   </div>
                 ) : !(currentUser && Number(currentUser.id || currentUser.userId || 0) > 0 && Number(currentUser.id || currentUser.userId) === Number(ad.user_id || ad.seller_id || ad.user?.id || 0)) ? (
                   <button
@@ -1249,13 +1249,28 @@ export default function AdDetailsClient({
               <li>Inspect the item to ensure it matches the description.</li>
               <li>Pay only if you are satisfied.</li>
             </ul>
-            <div className="pt-2 border-t border-amber-200/70">
+            <div className="pt-2 border-t border-amber-200/70 space-y-2">
+              {ad.stock_quantity !== null && ad.stock_quantity !== undefined && Number(ad.stock_quantity) > 0 && (
+                <div className="text-[11px] font-black text-emerald-800 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg text-center">
+                  {ad.stock_quantity} unit(s) remaining in stock
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setReportReason("Item is Out of Stock / Unavailable");
+                  setShowReportModal(true);
+                }}
+                className="w-full py-2 bg-amber-100/80 hover:bg-amber-200/70 text-amber-950 border border-amber-300 rounded-lg text-xs font-black flex items-center justify-center gap-1.5 transition"
+              >
+                <Flag className="w-3.5 h-3.5 text-amber-800" /> Report Out of Stock
+              </button>
               <button
                 type="button"
                 onClick={() => setShowReportModal(true)}
                 className="w-full py-2 bg-white hover:bg-red-50 text-red-600 border border-red-200 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition"
               >
-                <Flag className="w-3.5 h-3.5" /> Report This Advert
+                <Flag className="w-3.5 h-3.5" /> Report Suspicious Advert
               </button>
             </div>
           </div>
@@ -1376,6 +1391,7 @@ export default function AdDetailsClient({
                 >
                   <option value="Suspected scam or fraud">Suspected scam or fraud</option>
                   <option value="Prohibited or illegal item">Prohibited or illegal item</option>
+                  <option value="Item is Out of Stock / Unavailable">Item is Out of Stock / Unavailable</option>
                   <option value="Item already sold / fake listing">Item already sold / fake listing</option>
                   <option value="Wrong category or misleading price">Wrong category or misleading price</option>
                 </select>

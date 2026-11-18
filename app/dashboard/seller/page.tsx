@@ -229,7 +229,7 @@ function SellerDashboardContent() {
   }, [loadDashboard]);
 
   const handleToggleStatus = async (ad: any) => {
-    const nextStatus = ad.status === 'Sold' ? 'Available' : 'Sold';
+    const nextStatus = ['Sold', 'Out of Stock', 'Unavailable'].includes(ad.status) ? 'Available' : 'Out of Stock';
     try {
       const res = await fetch(`${API_URL}/dashboard/ads/${ad.id}/status`, {
         method: 'PUT',
@@ -677,7 +677,7 @@ function SellerDashboardContent() {
                         </Link>
                         <span
                           className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
-                            ad.status === 'Sold'
+                            ['Sold', 'Out of Stock', 'Unavailable'].includes(ad.status)
                               ? 'bg-gray-200 text-gray-700'
                               : ad.status === 'Flagged' || ad.status === 'Rejected'
                               ? 'bg-red-100 text-red-700'
@@ -686,6 +686,16 @@ function SellerDashboardContent() {
                         >
                           {ad.status}
                         </span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
+                          {ad.stock_quantity !== null && ad.stock_quantity !== undefined
+                            ? `Stock: ${ad.stock_quantity} left`
+                            : 'Unlimited / Manual Stock'}
+                        </span>
+                        {Number(ad.out_of_stock_reports || 0) > 0 && (
+                          <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-red-100 text-red-700">
+                            {ad.out_of_stock_reports} Out-of-Stock Report(s)
+                          </span>
+                        )}
                         {ad.is_vip && (
                           <span className="bg-amber-400 text-gray-950 text-[10px] font-black uppercase px-2 py-0.5 rounded-full flex items-center gap-1">
                             <Sparkles className="w-3 h-3" /> {ad.vip_type || 'VIP'}
@@ -759,7 +769,7 @@ function SellerDashboardContent() {
                       onClick={() => handleToggleStatus(ad)}
                       className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-lg text-xs font-bold transition"
                     >
-                      {ad.status === 'Sold' ? 'Mark Available' : 'Mark Sold'}
+                      {['Sold', 'Out of Stock', 'Unavailable'].includes(ad.status) ? 'Reactivate (Available)' : 'Mark Out of Stock'}
                     </button>
 
                     <Link

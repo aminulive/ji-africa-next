@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   ShieldCheck,
+  Sparkles,
   Users,
   Package,
   FileText,
@@ -56,11 +57,18 @@ function getAdThumb(ad: any) {
 export default function AdminDashboardPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<
-    'moderation' | 'users' | 'trust' | 'chat-quotes' | 'reviews' | 'categories' | 'blog' | 'messages' | 'requests' | 'newsletter'
+    'moderation' | 'users' | 'trust' | 'chat-quotes' | 'intelligence' | 'reviews' | 'categories' | 'blog' | 'messages' | 'requests' | 'newsletter'
   >('moderation');
   const [adminBuyerRequests, setAdminBuyerRequests] = useState<any[]>([]);
   const [adminChatQuotes, setAdminChatQuotes] = useState<any[]>([]);
   const [quoteAuditSearch, setQuoteAuditSearch] = useState('');
+  const [marketIntel, setMarketIntel] = useState<any>({
+    mostViewed: [],
+    priceChanges: [],
+    topSearches: [],
+    zeroResultSearches: [],
+    categoryStats: [],
+  });
   const [newsletterData, setNewsletterData] = useState<{
     stats: { totalActive: number; fromSignup: number; fromFooter: number; verifiedSellers: number };
     subscribers: any[];
@@ -196,7 +204,7 @@ export default function AdminDashboardPage() {
 
     try {
       const headers = getAuthHeaders();
-      const [statsRes, adsRes, usersRes, catsRes, blogRes, msgRes, revRes, trustRes, reqRes, newsRes, chatQuotesRes] = await Promise.all([
+      const [statsRes, adsRes, usersRes, catsRes, blogRes, msgRes, revRes, trustRes, reqRes, newsRes, chatQuotesRes, intelRes] = await Promise.all([
         fetch(`${API_URL}/admin/stats`, { headers }),
         fetch(`${API_URL}/admin/ads?status=${adFilter}`, { headers }),
         fetch(`${API_URL}/admin/users?search=${encodeURIComponent(userSearch)}`, { headers }),
@@ -208,6 +216,7 @@ export default function AdminDashboardPage() {
         fetch(`${API_URL}/buyer-requests/admin/all`, { headers }),
         fetch(`${API_URL}/newsletter/admin/overview`, { headers }),
         fetch(`${API_URL}/chat/admin/quotes`, { headers }),
+        fetch(`${API_URL}/admin/intelligence`, { headers }),
       ]);
 
       if (statsRes.ok) setStats(await statsRes.json());
@@ -229,6 +238,10 @@ export default function AdminDashboardPage() {
       if (reqRes?.ok) {
         const rJson = await reqRes.json();
         setAdminBuyerRequests(rJson.requests || []);
+      }
+      if (intelRes?.ok) {
+        const intelJson = await intelRes.json();
+        setMarketIntel(intelJson || {});
       }
       if (chatQuotesRes?.ok) {
         const cqJson = await chatQuotesRes.json();
@@ -261,7 +274,7 @@ export default function AdminDashboardPage() {
       const tabParam = sp.get('tab');
       if (
         tabParam &&
-        ['moderation', 'users', 'trust', 'chat-quotes', 'reviews', 'categories', 'blog', 'messages', 'requests', 'newsletter'].includes(tabParam)
+        ['moderation', 'users', 'trust', 'chat-quotes', 'intelligence', 'reviews', 'categories', 'blog', 'messages', 'requests', 'newsletter'].includes(tabParam)
       ) {
         setActiveTab(tabParam as any);
       }
@@ -517,6 +530,33 @@ export default function AdminDashboardPage() {
     } catch {}
   };
 
+  // Out-of-Stock Enforcement Penalty Handler
+  const handleEnforceOosPenalty = async (adId: number, penalty: string, label: string) => {
+    if (penalty === 'delete_seller') {
+      if (!confirm('PERMANENT ACTION: Delete this seller account and ALL their adverts permanently?')) return;
+    } else if (penalty === 'delete_ad') {
+      if (!confirm('Delete this advert permanently as a penalty?')) return;
+    } else if (!confirm(`Apply penalty: ${label}?`)) {
+      return;
+    }
+    try {
+      const res = await fetch(`${API_URL}/admin/ads/${adId}/enforce`, {
+        method: 'POST',
+        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ penalty }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        notify(data.message || 'Penalty applied');
+        loadAdminData();
+      } else {
+        notify(data.error || 'Failed to apply penalty');
+      }
+    } catch {
+      notify('Network error applying penalty');
+    }
+  };
+
   // Blog CMS Handlers
   const openNewPostEditor = () => {
     setEditingPost(null);
@@ -739,6 +779,17 @@ export default function AdminDashboardPage() {
           }`}
         >
           <ShieldCheck className="w-4 h-4 text-brand-orange" /> Chat Quotes &amp; Audit ({adminChatQuotes.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('intelligence')}
+          className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 transition ${
+            activeTab === 'intelligence'
+              ? 'bg-gray-900 text-white'
+              : 'text-gray-700 hover:bg-gray-100'
+          }`}
+        >
+          <Sparkles className="w-4 h-4 text-brand-orange" /> Market Intelligence
         </button>
         <button
           type="button"
@@ -1947,6 +1998,162 @@ export default function AdminDashboardPage() {
               </div>
             ))
           )}
+        </div>
+      )}
+
+      {/* TAB: MARKET & PLATFORM INTELLIGENCE */}
+      {activeTab === 'intelligence' && (
+        <div className="space-y-6">
+          {/* Row 1: Top Common Searches & Zero-Result Unmet Demand */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+              <div className="p-4 border-b border-gray-100">
+                <h3 className="font-black text-gray-900 text-sm">
+                  Top Buyer Search Terms ({(marketIntel.topSearches || []).length})
+                </h3>
+                <p className="text-[11px] text-gray-500">
+                  Most searched keywords across Nigeria with average matching ads.
+                </p>
+              </div>
+              {(marketIntel.topSearches || []).length === 0 ? (
+                <div className="p-8 text-center text-xs text-gray-500">
+                  Search telemetry will populate automatically as buyers search the marketplace.
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-100 max-h-80 overflow-y-auto">
+                  {(marketIntel.topSearches || []).map((s: any, idx: number) => (
+                    <div key={idx} className="px-4 py-3 flex items-center justify-between text-xs">
+                      <div>
+                        <span className="font-black text-gray-900">"{s.query}"</span>
+                        <span className="ml-2 text-[11px] text-gray-500">
+                          Avg {s.avg_results} ad(s)
+                        </span>
+                      </div>
+                      <span className="px-2.5 py-0.5 rounded-full bg-orange-50 text-brand-orange font-black text-[11px]">
+                        {s.search_count} searches
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+              <div className="p-4 border-b border-gray-100">
+                <h3 className="font-black text-gray-900 text-sm">
+                  Unmet Buyer Demand (Zero-Result Searches)
+                </h3>
+                <p className="text-[11px] text-gray-500">
+                  Items buyers searched for that returned 0 listings — recruit sellers in these niches!
+                </p>
+              </div>
+              {(marketIntel.zeroResultSearches || []).length === 0 ? (
+                <div className="p-8 text-center text-xs text-gray-500">
+                  No zero-result searches recorded yet.
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-100 max-h-80 overflow-y-auto">
+                  {(marketIntel.zeroResultSearches || []).map((s: any, idx: number) => (
+                    <div key={idx} className="px-4 py-3 flex items-center justify-between text-xs">
+                      <div>
+                        <span className="font-black text-red-600">"{s.query}"</span>
+                        {s.sample_location && (
+                          <span className="ml-2 text-[11px] text-gray-500">• {s.sample_location}</span>
+                        )}
+                      </div>
+                      <span className="px-2.5 py-0.5 rounded-full bg-red-50 text-red-700 font-black text-[11px]">
+                        {s.search_count} missed
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Row 2: Most Viewed Items */}
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="p-4 border-b border-gray-100">
+              <h3 className="font-black text-gray-900 text-sm">
+                Most Viewed Listings ({(marketIntel.mostViewed || []).length})
+              </h3>
+              <p className="text-[11px] text-gray-500">
+                Highest-traffic products and sellers driving buyer engagement.
+              </p>
+            </div>
+            <div className="divide-y divide-gray-100 max-h-96 overflow-y-auto">
+              {(marketIntel.mostViewed || []).map((item: any, idx: number) => (
+                <div key={item.id} className="px-4 py-3 flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <div className="min-w-0">
+                    <Link href={`/ad/${item.id}`} className="font-black text-gray-900 hover:text-brand-orange">
+                      #{idx + 1} • {item.title}
+                    </Link>
+                    <p className="text-[11px] text-gray-500">
+                      {item.category_name || 'Uncategorized'} • Seller: {item.seller_shop_name || item.seller_name} • ₦
+                      {Number(item.price || 0).toLocaleString('en-NG')}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 font-black">
+                      {Number(item.total_views || 0).toLocaleString()} views
+                    </span>
+                    <span className="px-2 py-0.5 rounded bg-gray-100 text-gray-700 font-bold text-[10px] uppercase">
+                      {item.status}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Row 3: Seller Price Change Log */}
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="p-4 border-b border-gray-100">
+              <h3 className="font-black text-gray-900 text-sm">
+                Price Change Intelligence ({(marketIntel.priceChanges || []).length})
+              </h3>
+              <p className="text-[11px] text-gray-500">
+                Historical log of seller price drops and price increases across the marketplace.
+              </p>
+            </div>
+            {(marketIntel.priceChanges || []).length === 0 ? (
+              <div className="p-8 text-center text-xs text-gray-500">
+                No price edits recorded yet.
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-100 max-h-80 overflow-y-auto">
+                {(marketIntel.priceChanges || []).map((pc: any) => {
+                  const isDrop = Number(pc.new_price) < Number(pc.old_price);
+                  return (
+                    <div key={pc.id} className="px-4 py-3 flex flex-wrap items-center justify-between gap-2 text-xs">
+                      <div>
+                        <p className="font-black text-gray-900">{pc.ad_title || `Ad #${pc.ad_id}`}</p>
+                        <p className="text-[11px] text-gray-500">
+                          Seller: {pc.seller_shop_name || pc.seller_name} •{' '}
+                          {new Date(pc.created_at).toLocaleString('en-GB')}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="line-through text-gray-400">
+                          ₦{Number(pc.old_price || 0).toLocaleString('en-NG')}
+                        </span>
+                        <span className="font-black text-gray-900">
+                          &rarr; ₦{Number(pc.new_price || 0).toLocaleString('en-NG')}
+                        </span>
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                            isDrop ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                          }`}
+                        >
+                          {Number(pc.change_pct) > 0 ? `+${pc.change_pct}%` : `${pc.change_pct}%`}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       )}
 

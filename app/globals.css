@@ -129,3 +129,25 @@ html:not(.dark) .ji-light-drawer-item:hover {
   background-color: #fff7ed !important;
   color: #c2410c !important;
 }
+
+/* Dark Mode Opacity Surface Overrides for Messenger & Quote Cards */
+html.dark .bg-gray-50\/40 {
+  background-color: #09090b !important;
+}
+html.dark .bg-orange-50\/60,
+html.dark .bg-orange-50\/80 {
+  background-color: rgba(234, 88, 12, 0.14) !important;
+}
+html.dark .bg-emerald-50 {
+  background-color: rgba(16, 185, 129, 0.14) !important;
+}
+html.dark .border-emerald-200 {
+  border-color: rgba(16, 185, 129, 0.35) !important;
+}
+html.dark .text-emerald-950,
+html.dark .text-emerald-900 {
+  color: #a7f3d0 !important;
+}
+html.dark .text-emerald-800 {
+  color: #6ee7b7 !important;
+}

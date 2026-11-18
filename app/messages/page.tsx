@@ -290,7 +290,7 @@ function MessagesWorkspace() {
       if (res.ok && data.authorization_url) {
         window.location.href = data.authorization_url;
       } else {
-        notify(data.error || "Could not initialize JI Trust payment");
+        notify(data?.error || `Could not initialize JI Trust payment (HTTP ${res.status})`);
       }
     } catch {
       notify("Network error initializing JI Trust payment");
@@ -340,7 +340,7 @@ function MessagesWorkspace() {
         </Link>
       </div>
 
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden grid grid-cols-1 lg:grid-cols-12 min-h-[70vh]">
+      <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-gray-200 dark:border-zinc-800 shadow-sm overflow-hidden grid grid-cols-1 lg:grid-cols-12 min-h-[70vh]">
         {/* LEFT PANE: CONVERSATIONS LIST */}
         <div
           className={`lg:col-span-4 border-r border-gray-200 flex flex-col ${
@@ -493,7 +493,7 @@ function MessagesWorkspace() {
               </div>
 
               {/* Messages Stream */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50/40 max-h-[54vh]">
+              <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50/40 dark:bg-zinc-950 max-h-[54vh]">
                 {loadingMessages ? (
                   <div className="py-12 text-center text-xs text-gray-400">Loading messages...</div>
                 ) : (
@@ -519,7 +519,7 @@ function MessagesWorkspace() {
                       return (
                         <div
                           key={m.id}
-                          className="my-2 p-4 rounded-2xl bg-white border-2 border-brand-orange/40 shadow-sm space-y-2.5 max-w-lg mx-auto"
+                          className="my-2 p-4 rounded-2xl bg-white dark:bg-zinc-900 border-2 border-brand-orange/50 shadow-md space-y-2.5 max-w-lg mx-auto"
                         >
                           <div className="flex items-center justify-between gap-2">
                             <span className="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-brand-orange">
@@ -542,7 +542,7 @@ function MessagesWorkspace() {
                             </span>
                           </div>
 
-                          <div className="grid grid-cols-3 gap-2 p-2.5 rounded-xl bg-orange-50/60 border border-orange-100 text-xs">
+                          <div className="grid grid-cols-3 gap-2 p-2.5 rounded-xl bg-orange-50/60 dark:bg-zinc-800 border border-orange-100 dark:border-zinc-700 text-xs">
                             <div>
                               <p className="text-[10px] text-gray-500 font-bold uppercase">Unit Price</p>
                               <p className="font-black text-gray-900">

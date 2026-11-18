@@ -76,6 +76,7 @@ function SellFormContent() {
   const [condition, setCondition] = useState('Brand New');
 
   const [status, setStatus] = useState('Available');
+  const [stockQuantity, setStockQuantity] = useState('');
   const [externalLink, setExternalLink] = useState('');
   const [delivery, setDelivery] = useState('');
   const [description, setDescription] = useState('');
@@ -325,7 +326,12 @@ function SellFormContent() {
               }
             }
 
-            setStatus(adData.status || 'Available');
+            setStatus(adData.status === 'Sold' ? 'Out of Stock' : adData.status || 'Available');
+            setStockQuantity(
+              adData.stock_quantity !== null && adData.stock_quantity !== undefined
+                ? String(adData.stock_quantity)
+                : ''
+            );
             setExternalLink(adData.youtube_link || '');
             setDelivery(adData.delivery_option || '');
             setDescription(adData.description || '');
@@ -493,6 +499,7 @@ function SellFormContent() {
     formData.append('description', description);
     formData.append('youtube_link', externalLink);
     formData.append('status', status);
+    formData.append('stock_quantity', stockQuantity.trim());
     formData.append('is_negotiable', isNegotiable);
     formData.append('ji_trust_enabled', jiTrustEnabled ? 'true' : 'false');
 
@@ -695,18 +702,37 @@ function SellFormContent() {
             </div>
           </div>
 
-          <div>
-            <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1.5">
-              Ad Status (Visibility)
-            </label>
-            <select
-              value={status}
-              onChange={(e) => setStatus(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm bg-white outline-none focus:border-brand-orange transition"
-            >
-              <option value="Available">Available (Visible to public)</option>
-              <option value="Unavailable">Temporarily Unavailable (Hidden)</option>
-            </select>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1.5">
+                Ad Status (Visibility)
+              </label>
+              <select
+                value={status}
+                onChange={(e) => setStatus(e.target.value)}
+                className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm bg-white outline-none focus:border-brand-orange transition"
+              >
+                <option value="Available">Available (Visible to public)</option>
+                <option value="Out of Stock">Out of Stock / Unavailable (Hidden)</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1.5">
+                No. of Items in Stock (Optional)
+              </label>
+              <input
+                type="number"
+                min={0}
+                value={stockQuantity}
+                onChange={(e) => setStockQuantity(e.target.value)}
+                placeholder="Leave blank if unlimited / always available"
+                className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:border-brand-orange outline-none transition"
+              />
+              <p className="text-[10px] text-gray-500 mt-1">
+                Optional: If set, ad auto-hides when all units are paid for until you restock.
+              </p>
+            </div>
           </div>
         </div>
 
