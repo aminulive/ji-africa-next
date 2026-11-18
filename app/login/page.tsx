@@ -72,6 +72,7 @@ export default function LoginPage() {
 
   const getPostAuthDestination = () => {
     if (typeof window === 'undefined') return '/';
+    fetch(`${API_URL}/auth/ping`, { cache: 'no-store' }).catch(() => {});
     const params = new URLSearchParams(window.location.search);
     const redir = params.get('redirect');
     if (redir && redir.startsWith('/')) return redir;
@@ -178,6 +179,15 @@ export default function LoginPage() {
     }
   };
 
+  const fetchWithWakeRetry = async (url: string, init: RequestInit): Promise<Response> => {
+    try {
+      return await fetch(url, init);
+    } catch (firstErr) {
+      await new Promise((resolve) => setTimeout(resolve, 2500));
+      return await fetch(url, init);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (submittingRef.current || loading) return;
@@ -188,7 +198,7 @@ export default function LoginPage() {
 
     try {
       if (mode === 'login') {
-        const res = await fetch(`${API_URL}/auth/login`, {
+        const res = await fetchWithWakeRetry(`${API_URL}/auth/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ identifier, password }),
@@ -205,58 +215,97 @@ export default function LoginPage() {
       if (mode === 'register') {
         if (password !== confirmPassword) {
           setError('Passwords do not match. Please enter the exact same password in both fields.');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
           setLoading(false);
           return;
         }
         if (!acceptedTerms) {
           setError('Please read and accept the Terms & Conditions and Privacy Policy.');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
           setLoading(false);
           return;
         }
-
-        const formData = new FormData();
-        formData.append('full_name', fullName);
-        if (username.trim()) formData.append('username', username.trim().toLowerCase());
-        formData.append('email', email);
-        formData.append('phone', phone);
-        formData.append('password', password);
-        formData.append('accepted_terms', 'true');
-        if (referralCode.trim()) formData.append('referral_code', referralCode.trim());
-        formData.append('newsletter_subscribed', newsletterSubscribed ? 'true' : 'false');
         if (jiTrustEnrolled) {
           if (!jiTrustTermsAccepted) {
             setError('Please read and accept the JI Trust Seller Terms & Conditions.');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
             setLoading(false);
             return;
           }
           if (!payoutBankName.trim() || payoutAccountNumber.trim().length < 10 || !payoutAccountName.trim()) {
             setError('Please enter your Bank Name, 10-digit Account Number, and Account Name for JI Trust payouts.');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
             setLoading(false);
             return;
           }
-          formData.append('ji_trust_enrolled', 'true');
-          formData.append('ji_trust_terms_accepted', 'true');
-          formData.append('payout_bank_name', payoutBankName.trim());
-          formData.append('payout_account_number', payoutAccountNumber.trim());
-          formData.append('payout_account_name', payoutAccountName.trim());
         }
 
-        if (shopName) formData.append('shop_name', shopName);
-        if (shopAddress) formData.append('shop_address', shopAddress);
-        if (shopDescription) formData.append('shop_description', shopDescription);
-        if (profileImage) formData.append('profile_image', profileImage);
+        let res: Response;
+        if (profileImage) {
+          const formData = new FormData();
+          formData.append('full_name', fullName.trim());
+          if (username.trim()) formData.append('username', username.trim().toLowerCase());
+          formData.append('email', email.trim());
+          formData.append('phone', phone.trim());
+          formData.append('password', password);
+          formData.append('accepted_terms', 'true');
+          if (referralCode.trim()) formData.append('referral_code', referralCode.trim());
+          formData.append('newsletter_subscribed', newsletterSubscribed ? 'true' : 'false');
+          if (jiTrustEnrolled) {
+            formData.append('ji_trust_enrolled', 'true');
+            formData.append('ji_trust_terms_accepted', 'true');
+            formData.append('payout_bank_name', payoutBankName.trim());
+            formData.append('payout_account_number', payoutAccountNumber.trim());
+            formData.append('payout_account_name', payoutAccountName.trim());
+          }
+          if (shopName) formData.append('shop_name', shopName.trim());
+          if (shopAddress) formData.append('shop_address', shopAddress.trim());
+          if (shopDescription) formData.append('shop_description', shopDescription.trim());
+          formData.append('profile_image', profileImage);
+          if (socials.facebook) formData.append('facebook', socials.facebook.trim());
+          if (socials.twitter) formData.append('twitter', socials.twitter.trim());
+          if (socials.instagram) formData.append('instagram', socials.instagram.trim());
+          if (socials.tiktok) formData.append('tiktok', socials.tiktok.trim());
+          if (socials.youtube) formData.append('youtube', socials.youtube.trim());
+          if (socials.whatsapp) formData.append('whatsapp', socials.whatsapp.trim());
 
-        if (socials.facebook) formData.append('facebook', socials.facebook);
-        if (socials.twitter) formData.append('twitter', socials.twitter);
-        if (socials.instagram) formData.append('instagram', socials.instagram);
-        if (socials.tiktok) formData.append('tiktok', socials.tiktok);
-        if (socials.youtube) formData.append('youtube', socials.youtube);
-        if (socials.whatsapp) formData.append('whatsapp', socials.whatsapp);
+          res = await fetchWithWakeRetry(`${API_URL}/auth/register`, {
+            method: 'POST',
+            body: formData,
+          });
+        } else {
+          const jsonPayload: Record<string, any> = {
+            full_name: fullName.trim(),
+            username: username.trim() ? username.trim().toLowerCase() : undefined,
+            email: email.trim(),
+            phone: phone.trim(),
+            password,
+            accepted_terms: true,
+            referral_code: referralCode.trim() || undefined,
+            newsletter_subscribed: newsletterSubscribed,
+            ji_trust_enrolled: jiTrustEnrolled,
+            ji_trust_terms_accepted: jiTrustEnrolled ? jiTrustTermsAccepted : false,
+            payout_bank_name: jiTrustEnrolled ? payoutBankName.trim() : undefined,
+            payout_account_number: jiTrustEnrolled ? payoutAccountNumber.trim() : undefined,
+            payout_account_name: jiTrustEnrolled ? payoutAccountName.trim() : undefined,
+            shop_name: shopName.trim() || undefined,
+            shop_address: shopAddress.trim() || undefined,
+            shop_description: shopDescription.trim() || undefined,
+            facebook: socials.facebook.trim() || undefined,
+            twitter: socials.twitter.trim() || undefined,
+            instagram: socials.instagram.trim() || undefined,
+            tiktok: socials.tiktok.trim() || undefined,
+            youtube: socials.youtube.trim() || undefined,
+            whatsapp_link: socials.whatsapp.trim() || undefined,
+          };
 
-        const res = await fetch(`${API_URL}/auth/register`, {
-          method: 'POST',
-          body: formData,
-        });
+          res = await fetchWithWakeRetry(`${API_URL}/auth/register`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(jsonPayload),
+          });
+        }
+
         const data = await parseApiResponse(res);
 
         if (res.ok) {
@@ -270,8 +319,10 @@ export default function LoginPage() {
             `Account created! We sent a 6-digit verification code to ${email}. Enter it below or continue to your shop.`
           );
           setMode('verify');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
         } else {
           setError(data.error || 'Registration failed. Please check your details.');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
         }
         return;
       }
