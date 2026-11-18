@@ -127,36 +127,28 @@ function SellerDashboardContent() {
   const handleRedeemReferralBoost = async (ad: any) => {
     const token = localStorage.getItem('ji_token');
     if (!token) return;
-    if (!confirm(`Use 1 Free Referral Boost Credit to VIP-boost "${ad.title}" for 7 days?`)) return;
+    const avail = Number(referralStats?.free_boost_credits || 0);
+    if (avail <= 0) return;
+    let chosenDays = 1;
+    if (avail > 1) {
+      const raw = prompt(`You have ${avail} Boost Day(s). How many days to boost "${ad.title}"? (1-${avail})`, '1');
+      if (raw === null) return;
+      chosenDays = Math.max(1, Math.min(avail, parseInt(raw, 10) || 1));
+    } else if (!confirm(`Apply 1 Free Boost Day (24h) to "${ad.title}"?`)) return;
     setRedeemingAdId(Number(ad.id));
     try {
       const res = await fetch(`${API_URL}/users/referrals/redeem`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ ad_id: Number(ad.id), vip_type: 'top' }),
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ ad_id: Number(ad.id), days: chosenDays, vip_type: 'top' }),
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        notify(data.message || 'Free VIP Boost activated!');
+        notify(data.message || `Boosted for +${chosenDays} day(s)!`);
         loadReferralStats(token);
-        setAds((prev) =>
-          prev.map((item) =>
-            Number(item.id) === Number(ad.id)
-              ? { ...item, is_vip: true, vip_type: 'top' }
-              : item
-          )
-        );
-      } else {
-        notify(data.error || 'Could not redeem boost credit');
-      }
-    } catch {
-      notify('Network error redeeming boost');
-    } finally {
-      setRedeemingAdId(null);
-    }
+        setAds((prev) => prev.map((it) => Number(it.id) === Number(ad.id) ? { ...it, is_vip: true, vip_type: 'top' } : it));
+      } else notify(data.error || 'Could not redeem boost days');
+    } catch { notify('Network error redeeming boost'); } finally { setRedeemingAdId(null); }
   };
 
   const [ads, setAds] = useState<any[]>([]);
@@ -608,14 +600,14 @@ function SellerDashboardContent() {
                 Refer &amp; Earn Free Boosts
               </span>
               <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-black">
-                {Number(referralStats.free_boost_credits || 0)} Free Boost Credit(s) Available
+                {Number(referralStats.free_boost_credits || 0)} Boost Day(s) Available
               </span>
             </div>
             <h3 className="text-base font-black text-gray-900">
-              Invite 1 Seller or Buyer &rarr; Unlock 1 Free 7-Day VIP Ad Boost
+              Invite 1 Friend &rarr; Unlock 1 Free Boost Day (10 Invites = 10 Days!)
             </h3>
             <p className="text-xs text-gray-600">
-              Share your personal invite link. Once your friend signs up and verifies their email (or posts their first advert), you automatically earn a <strong>Free 7-Day TOP Boost</strong> to feature any of your listings!
+              Every friend who signs up and verifies their email unlocks <strong>+1 Boost Day</strong> (valid for <strong>14 days</strong> before unused days expire). Apply 1 day per listing or stack multiple days on one advert!
             </p>
             <div className="flex flex-wrap items-center gap-3 text-[11px] font-bold text-gray-700 pt-1">
               <span>Code: <strong className="text-brand-orange">{referralStats.referral_code}</strong></span>
@@ -830,7 +822,7 @@ function SellerDashboardContent() {
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2 shrink-0">
-                    {Number(referralStats?.free_boost_credits || 0) > 0 && ad.status === 'Available' && !ad.is_vip ? (
+                    {Number(referralStats?.free_boost_credits || 0) > 0 && ad.status === 'Available' ? (
                       <button
                         type="button"
                         disabled={redeemingAdId === Number(ad.id)}
@@ -840,7 +832,7 @@ function SellerDashboardContent() {
                         <Sparkles className="w-3.5 h-3.5" />
                         {redeemingAdId === Number(ad.id)
                           ? 'Boosting...'
-                          : `Use Free Boost (${referralStats.free_boost_credits} left)`}
+                          : ad.is_vip ? `+Extend (${referralStats.free_boost_credits}d)` : `Boost (${referralStats.free_boost_credits}d)`}
                       </button>
                     ) : (
                       <button
@@ -850,7 +842,7 @@ function SellerDashboardContent() {
                         className="px-3.5 py-2 bg-gray-100 text-gray-400 border border-gray-200 rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-not-allowed select-none"
                       >
                         <Sparkles className="w-3.5 h-3.5" />
-                        Boost Ad (Coming Soon)
+                        Boost (Soon)
                       </button>
                     )}
 
@@ -860,7 +852,7 @@ function SellerDashboardContent() {
                       title="Free Bump Ad is temporarily disabled (Coming Soon)"
                       className="px-3.5 py-2 bg-gray-100 text-gray-400 border border-gray-200 rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-not-allowed select-none"
                     >
-                      Bump Ad (Coming Soon)
+                      Bump (Soon)
                     </button>
 
                     <button
