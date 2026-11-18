@@ -99,6 +99,37 @@ export default function AdDetailsClient({
 
   // Report Ad Modal State
   const [showReportModal, setShowReportModal] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [copiedShareLink, setCopiedShareLink] = useState(false);
+
+  const handleTriggerShare = async () => {
+    const shareUrl =
+      typeof window !== 'undefined'
+        ? window.location.href
+        : `https://www.ji.africa/ad/${ad?.id || ''}`;
+    const shareTitle = ad?.title || 'Listing on ji.africa';
+    const shareText = `${shareTitle} — ₦${Number(ad?.price || 0).toLocaleString('en-NG')} on ji.africa`;
+
+    if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+      try {
+        await navigator.share({
+          title: shareTitle,
+          text: shareText,
+          url: shareUrl,
+        });
+        return;
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return;
+      }
+    }
+
+    try {
+      await navigator.clipboard?.writeText(shareUrl);
+      setCopiedShareLink(true);
+      setTimeout(() => setCopiedShareLink(false), 3000);
+    } catch {}
+    setShowShareModal(true);
+  };
   const [reportReason, setReportReason] = useState('Suspected scam or fraud');
   const [reportDetails, setReportDetails] = useState('');
   const [sendingReport, setSendingReport] = useState(false);
@@ -1192,10 +1223,10 @@ export default function AdDetailsClient({
                 </a>
                 <button
                   type="button"
-                  onClick={handleShare}
+                  onClick={handleTriggerShare}
                   className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1 shadow-sm transition"
                 >
-                  <Share2 className="w-3.5 h-3.5" /> Copy
+                  <Share2 className="w-3.5 h-3.5" /> Share
                 </button>
               </div>
             </div>
@@ -1359,6 +1390,88 @@ export default function AdDetailsClient({
                 Send Callback Request
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* SHARE ADVERT MODAL */}
+      {showShareModal && (
+        <div className="fixed inset-0 bg-gray-900/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-md rounded-2xl overflow-hidden shadow-2xl border border-gray-200">
+            <div className="p-4 bg-gray-900 text-white flex items-center justify-between">
+              <h3 className="font-black text-sm flex items-center gap-2">
+                <Share2 className="w-4 h-4 text-brand-orange" /> Share This Advert
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowShareModal(false)}
+                className="text-gray-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <p className="text-xs text-gray-600 line-clamp-2 font-medium">
+                {ad.title} — <span className="font-black text-brand-orange">₦{Number(ad.price || 0).toLocaleString('en-NG')}</span>
+              </p>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                <a
+                  href={`https://wa.me/?text=${encodeURIComponent(`${ad.title} (₦${Number(ad.price || 0).toLocaleString('en-NG')}) - https://www.ji.africa/ad/${ad.id}`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="py-2.5 px-3 rounded-xl bg-[#25D366]/15 hover:bg-[#25D366]/25 text-[#128C7E] text-xs font-black text-center transition"
+                >
+                  WhatsApp
+                </a>
+                <a
+                  href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`${ad.title} (₦${Number(ad.price || 0).toLocaleString('en-NG')}) on @jiafrica`)}&url=${encodeURIComponent(`https://www.ji.africa/ad/${ad.id}`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="py-2.5 px-3 rounded-xl bg-gray-900 hover:bg-black text-white text-xs font-black text-center transition"
+                >
+                  Post on X
+                </a>
+                <a
+                  href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(`https://www.ji.africa/ad/${ad.id}`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="py-2.5 px-3 rounded-xl bg-blue-600/15 hover:bg-blue-600/25 text-blue-700 text-xs font-black text-center transition"
+                >
+                  Facebook
+                </a>
+                <a
+                  href={`https://t.me/share/url?url=${encodeURIComponent(`https://www.ji.africa/ad/${ad.id}`)}&text=${encodeURIComponent(`${ad.title} (₦${Number(ad.price || 0).toLocaleString('en-NG')})`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="py-2.5 px-3 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 text-sky-700 text-xs font-black text-center transition"
+                >
+                  Telegram
+                </a>
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  type="text"
+                  readOnly
+                  value={`https://www.ji.africa/ad/${ad.id}`}
+                  className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-700 outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard?.writeText(`https://www.ji.africa/ad/${ad.id}`);
+                      setCopiedShareLink(true);
+                      setTimeout(() => setCopiedShareLink(false), 3000);
+                    } catch {}
+                  }}
+                  className="px-4 py-2 bg-brand-orange hover:bg-orange-700 text-white rounded-xl text-xs font-black shrink-0 transition"
+                >
+                  {copiedShareLink ? 'Copied!' : 'Copy Link'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
