@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, Suspense } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -25,6 +25,7 @@ import RecentlyViewedStrip from './RecentlyViewedStrip';
 import ProductCard from './ProductCard';
 import LocationModal from './LocationModal';
 import { CategoryIcon } from '../lib/categoryIcons';
+import { getCategoryVisualMeta } from '../lib/categoryThumbs';
 import { getCategorySpecConfig } from '../lib/categorySpecs';
 
 const API_URL = 'https://ji-africa-backend.onrender.com/api';
@@ -486,60 +487,279 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
     return filtered;
   }, [ads, minPrice, maxPrice, conditionFilter, jiTrustOnly, brandFilter, typeFilter, modelFilter, sortBy]);
 
+  // Hover-to-Reveal Desktop Category Flyout + Mobile Subcategory Sheet
+  const [hoveredCatId, setHoveredCatId] = useState<string | null>(null);
+  const [mobileSheetCat, setMobileSheetCat] = useState<any | null>(null);
+  const hoverCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const openCategoryFlyout = (catId: string) => {
+    if (hoverCloseTimerRef.current) {
+      clearTimeout(hoverCloseTimerRef.current);
+      hoverCloseTimerRef.current = null;
+    }
+    setHoveredCatId(catId);
+  };
+
+  const scheduleCloseCategoryFlyout = () => {
+    if (hoverCloseTimerRef.current) clearTimeout(hoverCloseTimerRef.current);
+    hoverCloseTimerRef.current = setTimeout(() => {
+      setHoveredCatId(null);
+    }, 150);
+  };
+
+  const hoveredCatObj = useMemo(
+    () => sortedCategories.find((c) => String(c.id) === String(hoveredCatId)) || null,
+    [sortedCategories, hoveredCatId]
+  );
+
   return (
     <div className="flex flex-col lg:flex-row gap-6">
-      {/* Desktop Categories Sidebar with 4-Level Expandable Tree */}
-      <aside className="hidden lg:block w-64 shrink-0">
-        <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden sticky top-20">
-          <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex items-center justify-between">
-            <h3 className="font-bold text-gray-800 text-sm">Categories</h3>
-            {selectedCategory !== 'all' && (
-              <button
-                type="button"
-                onClick={() =>
-                  updateUrlParams({
-                    category: 'all',
-                    subcategory: '',
-                    sub_subcategory: '',
-                    sub_sub_subcategory: '',
-                  })
-                }
-                className="text-[11px] font-bold text-brand-orange hover:underline"
-              >
-                Reset
-              </button>
-            )}
+      {/* Desktop Categories Sidebar with Mini Thumbnails & Hover-to-Reveal Subcategory Flyout */}
+      <aside
+        className="hidden lg:block w-72 shrink-0"
+        onMouseLeave={scheduleCloseCategoryFlyout}
+      >
+        <div className="relative sticky top-20">
+          <div className="bg-white dark:bg-neutral-900 rounded-xl border border-gray-200 dark:border-neutral-800 shadow-sm overflow-hidden">
+            <div className="bg-gray-50 dark:bg-neutral-950 px-4 py-3 border-b border-gray-200 dark:border-neutral-800 flex items-center justify-between">
+              <div>
+                <h3 className="font-black text-gray-900 dark:text-neutral-100 text-sm">Categories</h3>
+                <p className="text-[10px] text-gray-400">Hover any category to explore</p>
+              </div>
+              {selectedCategory !== 'all' && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    updateUrlParams({
+                      category: 'all',
+                      subcategory: '',
+                      sub_subcategory: '',
+                      sub_sub_subcategory: '',
+                    })
+                  }
+                  className="text-[11px] font-bold text-brand-orange hover:underline"
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+
+            <ul className="py-1.5 max-h-[calc(100vh-7.5rem)] overflow-y-auto divide-y divide-gray-50 dark:divide-neutral-800/60">
+              <li onMouseEnter={() => scheduleCloseCategoryFlyout()}>
+                <button
+                  type="button"
+                  onClick={() =>
+                    updateUrlParams({
+                      category: 'all',
+                      subcategory: '',
+                      sub_subcategory: '',
+                      sub_sub_subcategory: '',
+                    })
+                  }
+                  className={`w-full flex items-center gap-3 text-left px-3.5 py-2.5 text-xs transition ${
+                    selectedCategory === 'all'
+                      ? 'text-brand-orange font-extrabold bg-orange-50/90 dark:bg-brand-orange/15'
+                      : 'text-gray-700 dark:text-neutral-200 hover:text-brand-orange hover:bg-orange-50/60 dark:hover:bg-neutral-800'
+                  }`}
+                >
+                  <div className="w-8 h-8 rounded-lg bg-orange-100 text-brand-orange flex items-center justify-center shrink-0 shadow-2xs">
+                    <LayoutGrid className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <span className="block truncate font-bold">All Ads</span>
+                    <span className="block text-[10px] text-gray-400">Browse entire marketplace</span>
+                  </div>
+                </button>
+              </li>
+
+              {sortedCategories.map((c: any) => {
+                const isSelected = String(selectedCategory) === String(c.id);
+                const isHovered = String(hoveredCatId) === String(c.id);
+                const hasChildren = c.tree && c.tree.length > 0;
+                const visual = getCategoryVisualMeta(c.name);
+                const subCount = c.tree?.length || 0;
+
+                return (
+                  <li
+                    key={c.id}
+                    onMouseEnter={() => openCategoryFlyout(String(c.id))}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setHoveredCatId(null);
+                        updateUrlParams({
+                          category: String(c.id),
+                          subcategory: '',
+                          sub_subcategory: '',
+                          sub_sub_subcategory: '',
+                        });
+                      }}
+                      className={`w-full flex items-center justify-between gap-2.5 text-left px-3.5 py-2 text-xs transition group ${
+                        isSelected || isHovered
+                          ? 'text-brand-orange font-extrabold bg-orange-50/90 dark:bg-brand-orange/15'
+                          : 'text-gray-700 dark:text-neutral-200 hover:text-brand-orange hover:bg-orange-50/60 dark:hover:bg-neutral-800'
+                      }`}
+                    >
+                      <span className="flex items-center gap-2.5 min-w-0">
+                        <span
+                          className={`w-8 h-8 rounded-lg ${visual.accentBg} overflow-hidden shrink-0 border border-gray-200/80 dark:border-neutral-700 flex items-center justify-center shadow-2xs`}
+                        >
+                          <img
+                            src={visual.image}
+                            alt={c.name}
+                            loading="lazy"
+                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                          />
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block truncate font-bold leading-tight">{c.name}</span>
+                          {subCount > 0 && (
+                            <span className="block text-[10px] font-medium text-gray-400 leading-tight mt-0.5">
+                              {subCount} subcategories
+                            </span>
+                          )}
+                        </span>
+                      </span>
+
+                      {hasChildren && (
+                        <ChevronRight
+                          className={`w-4 h-4 shrink-0 transition-transform duration-200 ${
+                            isHovered
+                              ? 'text-brand-orange translate-x-0.5'
+                              : isSelected
+                              ? 'text-brand-orange'
+                              : 'text-gray-400 group-hover:text-brand-orange group-hover:translate-x-0.5'
+                          }`}
+                        />
+                      )}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
           </div>
 
-          <ul className="py-1.5 max-h-[calc(100vh-7rem)] overflow-y-auto">
-            <li>
-              <button
-                type="button"
-                onClick={() =>
-                  updateUrlParams({
-                    category: 'all',
-                    subcategory: '',
-                    sub_subcategory: '',
-                    sub_sub_subcategory: '',
-                  })
-                }
-                className={`w-full flex items-center gap-3 text-left px-4 py-2.5 text-xs transition ${
-                  selectedCategory === 'all'
-                    ? 'text-brand-orange font-bold bg-orange-50'
-                    : 'text-gray-600 hover:text-brand-orange hover:bg-orange-50'
-                }`}
-              >
-                <LayoutGrid className="w-4 h-4 shrink-0 text-brand-orange" />
-                <span>All Ads</span>
-              </button>
-            </li>
+          {/* Floating Hover-to-Reveal Subcategory Flyout Panel (Jiji-Style with Diagonal Safe-Zone) */}
+          {hoveredCatObj && hoveredCatObj.tree && hoveredCatObj.tree.length > 0 && (
+            <div
+              onMouseEnter={() => openCategoryFlyout(String(hoveredCatObj.id))}
+              onMouseLeave={scheduleCloseCategoryFlyout}
+              className="absolute left-[calc(100%+6px)] top-0 w-[520px] xl:w-[620px] max-h-[calc(100vh-6rem)] overflow-y-auto bg-white dark:bg-neutral-900 rounded-xl border border-gray-200 dark:border-neutral-700 shadow-2xl z-40 p-4 before:content-[''] before:absolute before:-left-3 before:top-0 before:bottom-0 before:w-4"
+            >
+              {/* Flyout Header */}
+              <div className="flex items-center justify-between pb-3 mb-3 border-b border-gray-100 dark:border-neutral-800">
+                <div className="flex items-center gap-2.5">
+                  <img
+                    src={getCategoryVisualMeta(hoveredCatObj.name).image}
+                    alt={hoveredCatObj.name}
+                    className="w-9 h-9 rounded-lg object-cover border border-gray-200"
+                  />
+                  <div>
+                    <h4 className="text-sm font-black text-gray-900 dark:text-neutral-100">
+                      {hoveredCatObj.name}
+                    </h4>
+                    <p className="text-[11px] text-gray-400">
+                      Select a subcategory or view all listings
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const targetId = String(hoveredCatObj.id);
+                    setHoveredCatId(null);
+                    updateUrlParams({
+                      category: targetId,
+                      subcategory: '',
+                      sub_subcategory: '',
+                      sub_sub_subcategory: '',
+                    });
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-brand-orange hover:bg-orange-700 text-white text-xs font-bold transition shrink-0"
+                >
+                  View All &rarr;
+                </button>
+              </div>
 
-            {sortedCategories.map((c: any) => {
-              const isSelected = String(selectedCategory) === String(c.id);
-              const hasChildren = c.tree && c.tree.length > 0;
-              return (
-                <li key={c.id}>
+              {/* 2-Column Subcategory & Level-3 Grid */}
+              <div className="grid grid-cols-2 gap-3">
+                {hoveredCatObj.tree.map((l2: CategoryNode) => (
+                  <div
+                    key={l2.name}
+                    className="p-2.5 rounded-lg bg-gray-50/80 dark:bg-neutral-800/60 hover:bg-orange-50/60 dark:hover:bg-neutral-800 border border-transparent hover:border-orange-200 transition"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const targetId = String(hoveredCatObj.id);
+                        setHoveredCatId(null);
+                        updateUrlParams({
+                          category: targetId,
+                          subcategory: l2.name,
+                          sub_subcategory: '',
+                          sub_sub_subcategory: '',
+                        });
+                      }}
+                      className="w-full flex items-center justify-between text-left text-xs font-extrabold text-gray-900 dark:text-neutral-100 hover:text-brand-orange transition"
+                    >
+                      <span className="truncate">{l2.name}</span>
+                      <ChevronRight className="w-3.5 h-3.5 text-brand-orange shrink-0" />
+                    </button>
+
+                    {l2.children && l2.children.length > 0 && (
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        {l2.children.slice(0, 6).map((l3: CategoryNode) => (
+                          <button
+                            key={l3.name}
+                            type="button"
+                            onClick={() => {
+                              const targetId = String(hoveredCatObj.id);
+                              setHoveredCatId(null);
+                              updateUrlParams({
+                                category: targetId,
+                                subcategory: l2.name,
+                                sub_subcategory: l3.name,
+                                sub_sub_subcategory: '',
+                              });
+                            }}
+                            className="text-[10px] font-semibold px-2 py-0.5 rounded bg-white dark:bg-neutral-900 text-gray-600 dark:text-neutral-300 hover:bg-brand-orange hover:text-white border border-gray-200/80 dark:border-neutral-700 transition"
+                          >
+                            {l3.name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </aside>
+
+      {/* Main Feed Column */}
+      <div className="flex-1 min-w-0">
+        <HeroBanner />
+        <RecentlyViewedStrip />
+
+        {/* Visual Popular Categories Strip (Photo Cards) */}
+        {selectedCategory === 'all' && !searchQuery && sortedCategories.length > 0 && (
+          <div className="mb-4">
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-xs font-black uppercase tracking-wider text-gray-600 dark:text-neutral-300">
+                Browse Popular Categories
+              </h2>
+              <span className="text-[11px] font-semibold text-gray-400 hidden sm:inline">
+                Tap any category to filter instantly
+              </span>
+            </div>
+            <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 gap-2">
+              {sortedCategories.slice(0, 8).map((c: any) => {
+                const visual = getCategoryVisualMeta(c.name);
+                return (
                   <button
+                    key={c.id}
                     type="button"
                     onClick={() =>
                       updateUrlParams({
@@ -549,147 +769,28 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
                         sub_sub_subcategory: '',
                       })
                     }
-                    className={`w-full flex items-center justify-between gap-2 text-left px-4 py-2.5 text-xs transition ${
-                      isSelected
-                        ? 'text-brand-orange font-bold bg-orange-50'
-                        : 'text-gray-600 hover:text-brand-orange hover:bg-orange-50'
-                    }`}
+                    className="group bg-white dark:bg-neutral-900 hover:bg-orange-50/70 dark:hover:bg-neutral-800 border border-gray-200 dark:border-neutral-800 hover:border-brand-orange rounded-xl p-2 flex flex-col items-center text-center shadow-2xs transition"
                   >
-                    <span className="flex items-center gap-3 min-w-0">
-                      <CategoryIcon
-                        iconName={c.icon}
-                        categoryName={c.name}
-                        className={`w-4 h-4 shrink-0 ${
-                          isSelected ? 'text-brand-orange' : 'text-gray-500'
-                        }`}
+                    <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-lg overflow-hidden bg-gray-100 mb-1.5 border border-gray-100 dark:border-neutral-800">
+                      <img
+                        src={visual.image}
+                        alt={c.name}
+                        loading="lazy"
+                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
                       />
-                      <span className="truncate">{c.name}</span>
+                    </div>
+                    <span className="text-[10px] font-extrabold text-gray-800 dark:text-neutral-200 group-hover:text-brand-orange line-clamp-1 leading-tight">
+                      {c.name.split(',')[0].split('&')[0].trim()}
                     </span>
-                    {hasChildren &&
-                      (isSelected ? (
-                        <ChevronDown className="w-3.5 h-3.5 shrink-0 text-brand-orange" />
-                      ) : (
-                        <ChevronRight className="w-3.5 h-3.5 shrink-0 text-gray-400" />
-                      ))}
                   </button>
-
-                  {/* Level 2 Subcategories */}
-                  {isSelected && hasChildren && (
-                    <ul className="bg-gray-50 dark:bg-gray-900/80 border-y border-gray-100 dark:border-gray-800 py-1">
-                      {c.tree.map((l2: CategoryNode) => {
-                        const isL2Active =
-                          selectedSubcategory.toLowerCase() === l2.name.toLowerCase();
-                        return (
-                          <li key={l2.name}>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                updateUrlParams({
-                                  category: String(c.id),
-                                  subcategory: l2.name,
-                                  sub_subcategory: '',
-                                  sub_sub_subcategory: '',
-                                })
-                              }
-                              className={`w-full flex items-center justify-between pl-9 pr-3 py-1.5 text-[11px] text-left transition ${
-                                isL2Active
-                                  ? 'text-brand-orange font-bold bg-orange-50 dark:bg-brand-orange/15'
-                                  : 'text-gray-600 dark:text-gray-300 hover:text-brand-orange'
-                              }`}
-                            >
-                              <span className="truncate">{l2.name}</span>
-                              {l2.children?.length > 0 && (
-                                <ChevronRight className="w-3 h-3 shrink-0" />
-                              )}
-                            </button>
-
-                            {/* Level 3 Sub-subcategories */}
-                            {isL2Active && l2.children?.length > 0 && (
-                              <ul className="bg-white dark:bg-gray-950/70 border-y border-gray-100 dark:border-gray-800 py-1">
-                                {l2.children.map((l3: CategoryNode) => {
-                                  const isL3Active =
-                                    selectedSubSubcategory.toLowerCase() ===
-                                    l3.name.toLowerCase();
-                                  return (
-                                    <li key={l3.name}>
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          updateUrlParams({
-                                            category: String(c.id),
-                                            subcategory: l2.name,
-                                            sub_subcategory: l3.name,
-                                            sub_sub_subcategory: '',
-                                          })
-                                        }
-                                        className={`w-full flex items-center justify-between pl-12 pr-3 py-1.5 text-[11px] text-left transition ${
-                                          isL3Active
-                                            ? 'text-brand-orange font-bold bg-orange-50 dark:bg-brand-orange/15'
-                                            : 'text-gray-500 dark:text-gray-400 hover:text-brand-orange'
-                                        }`}
-                                      >
-                                        <span className="truncate">• {l3.name}</span>
-                                        {l3.children?.length > 0 && (
-                                          <ChevronRight className="w-3 h-3 shrink-0" />
-                                        )}
-                                      </button>
-
-                                      {/* Level 4 Sub-sub-subcategories */}
-                                      {isL3Active && l3.children?.length > 0 && (
-                                        <ul className="bg-gray-50 dark:bg-gray-900/60 py-1">
-                                          {l3.children.map((l4: CategoryNode) => {
-                                            const isL4Active =
-                                              selectedLevel4.toLowerCase() ===
-                                              l4.name.toLowerCase();
-                                            return (
-                                              <li key={l4.name}>
-                                                <button
-                                                  type="button"
-                                                  onClick={() =>
-                                                    updateUrlParams({
-                                                      category: String(c.id),
-                                                      subcategory: l2.name,
-                                                      sub_subcategory: l3.name,
-                                                      sub_sub_subcategory: l4.name,
-                                                    })
-                                                  }
-                                                  className={`w-full pl-16 pr-3 py-1 text-[10px] text-left truncate transition ${
-                                                    isL4Active
-                                                      ? 'text-brand-orange font-black'
-                                                      : 'text-gray-500 dark:text-gray-400 hover:text-brand-orange'
-                                                  }`}
-                                                >
-                                                  ↳ {l4.name}
-                                                </button>
-                                              </li>
-                                            );
-                                          })}
-                                        </ul>
-                                      )}
-                                    </li>
-                                  );
-                                })}
-                              </ul>
-                            )}
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      </aside>
-
-      {/* Main Feed Column */}
-      <div className="flex-1 min-w-0">
-        <HeroBanner />
-      <RecentlyViewedStrip />
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Quick Trust & Escrow Filter Strip */}
-        <div className="mb-4 bg-white rounded-xl border border-gray-200 px-3.5 py-2.5 shadow-2xs flex flex-wrap items-center justify-between gap-2">
+        <div className="mb-4 bg-white dark:bg-neutral-900 rounded-xl border border-gray-200 dark:border-neutral-800 px-3.5 py-2.5 shadow-2xs flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
@@ -721,9 +822,9 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
           </span>
         </div>
 
-        {/* Mobile Horizontal Category Circles */}
+        {/* Mobile Horizontal Category Photo Circles */}
         <div className="block lg:hidden mb-4 -mx-4 px-4 sm:mx-0 sm:px-0">
-          <div className="flex overflow-x-auto gap-3.5 pb-2 snap-x snap-mandatory [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+          <div className="flex overflow-x-auto gap-3 pb-2 snap-x snap-mandatory [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
             <button
               type="button"
               onClick={() =>
@@ -734,20 +835,20 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
                   sub_sub_subcategory: '',
                 })
               }
-              className="flex flex-col items-center gap-1.5 shrink-0 snap-start w-[72px]"
+              className="flex flex-col items-center gap-1.5 shrink-0 snap-start w-[70px]"
             >
               <div
-                className={`w-14 h-14 rounded-full flex items-center justify-center shadow-sm transition ${
+                className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-sm transition ${
                   selectedCategory === 'all'
                     ? 'bg-orange-50 text-brand-orange border-2 border-brand-orange'
-                    : 'bg-white text-gray-500 border border-gray-100'
+                    : 'bg-white text-gray-500 border border-gray-200'
                 }`}
               >
                 <LayoutGrid className="w-6 h-6" />
               </div>
               <span
-                className={`text-[10px] font-semibold text-center leading-tight ${
-                  selectedCategory === 'all' ? 'text-brand-orange' : 'text-gray-500'
+                className={`text-[10px] font-bold text-center leading-tight ${
+                  selectedCategory === 'all' ? 'text-brand-orange' : 'text-gray-600'
                 }`}
               >
                 All
@@ -756,36 +857,42 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
 
             {sortedCategories.map((c: any) => {
               const isSelected = String(selectedCategory) === String(c.id);
+              const visual = getCategoryVisualMeta(c.name);
               return (
                 <button
                   key={c.id}
                   type="button"
-                  onClick={() =>
-                    updateUrlParams({
-                      category: String(c.id),
-                      subcategory: '',
-                      sub_subcategory: '',
-                      sub_sub_subcategory: '',
-                    })
-                  }
-                  className="flex flex-col items-center gap-1.5 shrink-0 snap-start w-[72px]"
+                  onClick={() => {
+                    if (c.tree && c.tree.length > 0) {
+                      setMobileSheetCat(c);
+                    } else {
+                      updateUrlParams({
+                        category: String(c.id),
+                        subcategory: '',
+                        sub_subcategory: '',
+                        sub_sub_subcategory: '',
+                      });
+                    }
+                  }}
+                  className="flex flex-col items-center gap-1.5 shrink-0 snap-start w-[70px]"
                 >
                   <div
-                    className={`w-14 h-14 rounded-full flex items-center justify-center shadow-sm transition ${
+                    className={`w-14 h-14 rounded-2xl overflow-hidden shadow-sm transition ${
                       isSelected
-                        ? 'bg-orange-50 text-brand-orange border-2 border-brand-orange'
-                        : 'bg-white text-gray-600 border border-gray-100'
+                        ? 'border-2 border-brand-orange ring-2 ring-brand-orange/20'
+                        : 'border border-gray-200 bg-white'
                     }`}
                   >
-                    <CategoryIcon
-                      iconName={c.icon}
-                      categoryName={c.name}
-                      className="w-6 h-6"
+                    <img
+                      src={visual.image}
+                      alt={c.name}
+                      loading="lazy"
+                      className="w-full h-full object-cover"
                     />
                   </div>
                   <span
-                    className={`text-[10px] font-semibold text-center leading-tight line-clamp-2 ${
-                      isSelected ? 'text-brand-orange' : 'text-gray-500'
+                    className={`text-[10px] font-bold text-center leading-tight line-clamp-2 ${
+                      isSelected ? 'text-brand-orange' : 'text-gray-600'
                     }`}
                   >
                     {c.name.split(',')[0].split('&')[0].trim()}
@@ -795,6 +902,83 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
             })}
           </div>
         </div>
+
+        {/* Mobile Subcategory Bottom Sheet (Touch Equivalent of Desktop Hover Flyout) */}
+        {mobileSheetCat && (
+          <div
+            className="fixed inset-0 z-50 lg:hidden bg-black/60 backdrop-blur-xs flex items-end"
+            onClick={() => setMobileSheetCat(null)}
+          >
+            <div
+              className="bg-white dark:bg-neutral-900 w-full rounded-t-2xl p-4 max-h-[78vh] overflow-y-auto shadow-2xl border-t border-gray-200 dark:border-neutral-800 space-y-3"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between pb-2.5 border-b border-gray-100 dark:border-neutral-800">
+                <div className="flex items-center gap-2.5">
+                  <img
+                    src={getCategoryVisualMeta(mobileSheetCat.name).image}
+                    alt={mobileSheetCat.name}
+                    className="w-9 h-9 rounded-lg object-cover"
+                  />
+                  <div>
+                    <h3 className="text-sm font-black text-gray-900 dark:text-neutral-100">
+                      {mobileSheetCat.name}
+                    </h3>
+                    <p className="text-[11px] text-gray-400">Choose a subcategory</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setMobileSheetCat(null)}
+                  className="p-1.5 rounded-full bg-gray-100 text-gray-600"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const targetId = String(mobileSheetCat.id);
+                  setMobileSheetCat(null);
+                  updateUrlParams({
+                    category: targetId,
+                    subcategory: '',
+                    sub_subcategory: '',
+                    sub_sub_subcategory: '',
+                  });
+                }}
+                className="w-full py-2.5 px-3.5 rounded-xl bg-brand-orange text-white text-xs font-extrabold flex items-center justify-between"
+              >
+                <span>View All in {mobileSheetCat.name}</span>
+                <ChevronRight className="w-4 h-4" />
+              </button>
+
+              <div className="grid grid-cols-1 gap-1.5">
+                {(mobileSheetCat.tree || []).map((l2: CategoryNode) => (
+                  <button
+                    key={l2.name}
+                    type="button"
+                    onClick={() => {
+                      const targetId = String(mobileSheetCat.id);
+                      setMobileSheetCat(null);
+                      updateUrlParams({
+                        category: targetId,
+                        subcategory: l2.name,
+                        sub_subcategory: '',
+                        sub_sub_subcategory: '',
+                      });
+                    }}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-neutral-800 hover:bg-orange-50 text-left text-xs font-bold text-gray-800 dark:text-neutral-200 flex items-center justify-between"
+                  >
+                    <span>{l2.name}</span>
+                    <ChevronRight className="w-4 h-4 text-gray-400" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Interactive 4-Level Subcategory Drilldown Strip + Top Brand Icon Cards */}
         {activeCatObj && (

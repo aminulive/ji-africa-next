@@ -2,7 +2,19 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { MessageCircle, ShieldAlert, ShieldCheck, CheckCircle2, X, Lock, Clock, Banknote } from 'lucide-react';
+import {
+  MessageCircle,
+  ShieldAlert,
+  ShieldCheck,
+  CheckCircle2,
+  X,
+  Lock,
+  Clock,
+  Banknote,
+  PlusCircle,
+  Megaphone,
+  Sparkles,
+} from 'lucide-react';
 
 export default function HeroBanner() {
   const [showSafetyModal, setShowSafetyModal] = useState(false);
@@ -10,57 +22,98 @@ export default function HeroBanner() {
 
   return (
     <>
-      <div className="bg-gradient-to-r from-brand-orange to-amber-500 rounded-xl p-5 md:py-6 md:px-8 text-white mb-5 shadow-sm relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-4">
+      {/* Slim High-Conversion Hero Strip */}
+      <div className="bg-gradient-to-r from-brand-orange to-amber-500 rounded-xl px-4 py-3.5 md:px-6 md:py-4 text-white mb-3.5 shadow-sm relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-3">
         <div className="z-10 max-w-2xl text-center md:text-left">
-          <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 mb-2">
-            <span className="inline-flex items-center gap-1 bg-emerald-950/75 border border-emerald-300/40 backdrop-blur-md text-emerald-200 text-[10px] uppercase font-black px-3 py-1 rounded-full tracking-wider">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-300" /> JI Trust Escrow Protected
+          <div className="flex flex-wrap items-center justify-center md:justify-start gap-1.5 mb-1.5">
+            <span className="inline-flex items-center gap-1 bg-emerald-950/80 border border-emerald-300/40 text-emerald-200 text-[10px] uppercase font-black px-2.5 py-0.5 rounded-full tracking-wider">
+              <ShieldCheck className="w-3 h-3 text-emerald-300" /> JI Trust Escrow Protected
             </span>
-            <span className="inline-block bg-white/20 backdrop-blur-md text-white text-[9px] uppercase font-bold px-2.5 py-1 rounded-full tracking-wider">
-              Direct WhatsApp Deals
+            <span className="inline-block bg-white/20 text-white text-[9px] uppercase font-bold px-2 py-0.5 rounded-full tracking-wider">
+              72h Inspection Guarantee
             </span>
           </div>
 
-          <h1 className="text-xl md:text-2xl font-extrabold tracking-tight mb-1.5">
+          <h1 className="text-lg md:text-xl font-extrabold tracking-tight leading-snug">
             Buy &amp; Sell Clean Used Items Anywhere in Nigeria
           </h1>
 
-          <p className="text-xs md:text-[13px] text-white/95 leading-relaxed max-w-xl">
-            Shop worry-free with <strong>JI Trust</strong>: your payment is held securely in escrow by <strong>ji.africa</strong> and only released to the seller after you receive and inspect your item (with a 72-hour buyer protection window).
+          <p className="text-[11px] md:text-xs text-white/95 leading-relaxed mt-0.5 max-w-xl">
+            Pay safely with <strong>JI Trust</strong> — funds stay in escrow until you receive and inspect your item, or chat directly with verified sellers on WhatsApp.
           </p>
+        </div>
 
-          <div className="flex flex-wrap gap-2.5 justify-center md:justify-start mt-3.5">
-            <Link
-              href="/sell"
-              className="bg-gray-900 hover:bg-gray-800 text-white px-5 py-2.5 rounded-full text-xs font-bold transition shadow-md"
-            >
-              Post Ad Free
-          </Link>
+        <div className="z-10 flex flex-wrap items-center justify-center gap-2 shrink-0">
           <Link
-            href="/flyer"
-            className="bg-white hover:bg-orange-50 text-brand-orange px-4 py-2.5 rounded-full text-xs font-black transition shadow-md inline-flex items-center gap-1.5"
+            href="/sell"
+            className="bg-gray-900 hover:bg-black text-white px-4 py-2 rounded-full text-xs font-extrabold transition shadow-sm"
           >
-            <MessageCircle className="w-3.5 h-3.5 text-[#25D366]" /> Make Free WhatsApp Flyer
+            + Post Ad Free
           </Link>
-            <button
-              type="button"
-              onClick={() => setShowTrustExplainer(true)}
-              className="bg-emerald-700 hover:bg-emerald-800 text-white border border-emerald-400/40 px-4 py-2.5 rounded-full text-xs font-bold transition shadow-sm inline-flex items-center gap-1.5"
-            >
-              <ShieldCheck className="w-3.5 h-3.5" /> How JI Trust Works
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowSafetyModal(true)}
-              className="bg-white/20 hover:bg-white/30 backdrop-blur text-white px-4 py-2.5 rounded-full text-xs font-bold transition"
-            >
-              Safety Rules
-            </button>
+          <button
+            type="button"
+            onClick={() => setShowSafetyModal(true)}
+            className="bg-white/20 hover:bg-white/30 text-white px-3.5 py-2 rounded-full text-xs font-bold transition"
+          >
+            Safety Tips
+          </button>
+        </div>
+      </div>
+
+      {/* 4 Visual Quick-Action Shortcut Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-4">
+        <Link
+          href="/sell"
+          className="group bg-white dark:bg-neutral-900 hover:bg-orange-50/70 dark:hover:bg-neutral-800 border border-gray-200 dark:border-neutral-800 hover:border-brand-orange rounded-xl p-2.5 flex items-center gap-2.5 shadow-2xs transition"
+        >
+          <div className="w-9 h-9 rounded-lg bg-orange-100 text-brand-orange flex items-center justify-center shrink-0 group-hover:scale-105 transition">
+            <PlusCircle className="w-5 h-5" />
           </div>
-        </div>
-        <div className="z-10 hidden md:flex items-center justify-center shrink-0 opacity-20 hover:opacity-40 transition duration-500 transform hover:scale-110">
-          <MessageCircle size={160} strokeWidth={1.5} />
-        </div>
+          <div className="min-w-0">
+            <p className="text-xs font-black text-gray-900 dark:text-neutral-100 truncate">Post Ad Free</p>
+            <p className="text-[10px] text-gray-500 truncate">Reach buyers fast</p>
+          </div>
+        </Link>
+
+        <Link
+          href="/request"
+          className="group bg-white dark:bg-neutral-900 hover:bg-amber-50/70 dark:hover:bg-neutral-800 border border-gray-200 dark:border-neutral-800 hover:border-amber-500 rounded-xl p-2.5 flex items-center gap-2.5 shadow-2xs transition"
+        >
+          <div className="w-9 h-9 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 group-hover:scale-105 transition">
+            <Megaphone className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-black text-gray-900 dark:text-neutral-100 truncate">Request Item</p>
+            <p className="text-[10px] text-gray-500 truncate">Get seller quotes</p>
+          </div>
+        </Link>
+
+        <Link
+          href="/flyer"
+          className="group bg-white dark:bg-neutral-900 hover:bg-emerald-50/70 dark:hover:bg-neutral-800 border border-gray-200 dark:border-neutral-800 hover:border-emerald-500 rounded-xl p-2.5 flex items-center gap-2.5 shadow-2xs transition"
+        >
+          <div className="w-9 h-9 rounded-lg bg-[#25D366]/15 text-[#128C7E] flex items-center justify-center shrink-0 group-hover:scale-105 transition">
+            <Sparkles className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-black text-gray-900 dark:text-neutral-100 truncate">WhatsApp Flyer</p>
+            <p className="text-[10px] text-gray-500 truncate">Free status card</p>
+          </div>
+        </Link>
+
+        <button
+          type="button"
+          onClick={() => setShowTrustExplainer(true)}
+          className="group text-left bg-white dark:bg-neutral-900 hover:bg-emerald-50/70 dark:hover:bg-neutral-800 border border-gray-200 dark:border-neutral-800 hover:border-emerald-600 rounded-xl p-2.5 flex items-center gap-2.5 shadow-2xs transition cursor-pointer"
+        >
+          <div className="w-9 h-9 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 group-hover:scale-105 transition">
+            <ShieldCheck className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs font-black text-gray-900 dark:text-neutral-100 truncate">JI Trust Escrow</p>
+            <p className="text-[10px] text-emerald-700 font-semibold truncate">How protection works</p>
+          </div>
+        </button>
       </div>
 
       {/* JI Trust Explainer Modal */}
