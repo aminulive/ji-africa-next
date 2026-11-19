@@ -1164,33 +1164,6 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
           </div>
         )}
 
-        {/* Always-Visible Quick Price Range Pills */}
-        <div className="mb-3 flex items-center gap-2 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-          <span className="text-[10px] font-extrabold uppercase text-gray-700 dark:text-gray-300 shrink-0">
-            Budget:
-          </span>
-          {PRICE_RANGE_PRESETS.map((preset) => {
-            const isPresetActive = minPrice === preset.min && maxPrice === preset.max;
-            return (
-              <button
-                key={preset.id}
-                type="button"
-                onClick={() => {
-                  setMinPrice(preset.min);
-                  setMaxPrice(preset.max);
-                }}
-                className={`px-3 py-1.5 rounded-full text-xs font-bold border transition shrink-0 ${
-                  isPresetActive
-                    ? 'bg-brand-orange text-white border-brand-orange shadow-xs'
-                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-gray-700 hover:border-brand-orange'
-                }`}
-              >
-                {preset.label}
-              </button>
-            );
-          })}
-        </div>
-
         {/* Active Search / Filter Badges */}
         {hasActiveFilters && (
           <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -1422,6 +1395,32 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
                   ? `Showing ${visibleAds.length} escrow-protected item(s)`
                   : 'Filter by JI Trust for 100% escrow payment safety'}
               </span>
+            </div>
+
+            <div className="col-span-2 sm:col-span-4 pb-2.5 mb-0.5 border-b border-gray-100 dark:border-neutral-800 flex items-center gap-2 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+              <span className="text-[10px] font-extrabold uppercase text-gray-500 dark:text-gray-400 shrink-0">
+                Budget:
+              </span>
+              {PRICE_RANGE_PRESETS.map((preset) => {
+                const isPresetActive = minPrice === preset.min && maxPrice === preset.max;
+                return (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => {
+                      setMinPrice(preset.min);
+                      setMaxPrice(preset.max);
+                    }}
+                    className={`px-3 py-1 rounded-full text-xs font-bold border transition shrink-0 ${
+                      isPresetActive
+                        ? 'bg-brand-orange text-white border-brand-orange shadow-xs'
+                        : 'bg-gray-50 dark:bg-neutral-800 text-gray-700 dark:text-gray-200 border-gray-200 dark:border-neutral-700 hover:border-brand-orange'
+                    }`}
+                  >
+                    {preset.label}
+                  </button>
+                );
+              })}
             </div>
             <div>
               <label className="block text-[10px] font-bold uppercase text-gray-400 mb-1">
