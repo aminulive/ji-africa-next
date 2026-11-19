@@ -725,7 +725,7 @@ export default function AdminDashboardPage() {
                   : 'All listings clean',
               subAlert: stats.flaggedAds + stats.openReports > 0,
               valueColor: 'text-gray-900',
-              activeBg: 'bg-gray-900 text-white border-gray-900',
+              activeBg: 'bg-brand-orange text-white border-brand-orange',
               icon: <Package className="w-4 h-4" />,
             },
             {
@@ -735,7 +735,7 @@ export default function AdminDashboardPage() {
               sub: `${stats.verifiedSellers} verified sellers`,
               subAlert: false,
               valueColor: 'text-blue-600',
-              activeBg: 'bg-gray-900 text-white border-gray-900',
+              activeBg: 'bg-brand-orange text-white border-brand-orange',
               icon: <Users className="w-4 h-4" />,
             },
             {
@@ -765,7 +765,7 @@ export default function AdminDashboardPage() {
               sub: '3-way quote audit',
               subAlert: false,
               valueColor: 'text-gray-900',
-              activeBg: 'bg-gray-900 text-white border-gray-900',
+              activeBg: 'bg-brand-orange text-white border-brand-orange',
               icon: <ShieldCheck className="w-4 h-4" />,
             },
             {
@@ -775,7 +775,7 @@ export default function AdminDashboardPage() {
               sub: 'Unread messages',
               subAlert: stats.unreadMessages > 0,
               valueColor: 'text-emerald-600',
-              activeBg: 'bg-gray-900 text-white border-gray-900',
+              activeBg: 'bg-brand-orange text-white border-brand-orange',
               icon: <Mail className="w-4 h-4" />,
             },
             {
@@ -785,7 +785,7 @@ export default function AdminDashboardPage() {
               sub: '4-level taxonomy',
               subAlert: false,
               valueColor: 'text-brand-orange',
-              activeBg: 'bg-gray-900 text-white border-gray-900',
+              activeBg: 'bg-brand-orange text-white border-brand-orange',
               icon: <FolderTree className="w-4 h-4" />,
             },
             {
@@ -795,7 +795,7 @@ export default function AdminDashboardPage() {
               sub: 'Active subscribers',
               subAlert: false,
               valueColor: 'text-gray-900',
-              activeBg: 'bg-gray-900 text-white border-gray-900',
+              activeBg: 'bg-brand-orange text-white border-brand-orange',
               icon: <Send className="w-4 h-4" />,
             },
             {
@@ -805,7 +805,7 @@ export default function AdminDashboardPage() {
               sub: 'Seller feedback',
               subAlert: false,
               valueColor: 'text-gray-900',
-              activeBg: 'bg-gray-900 text-white border-gray-900',
+              activeBg: 'bg-brand-orange text-white border-brand-orange',
               icon: <BadgeCheck className="w-4 h-4" />,
             },
             {
@@ -815,7 +815,7 @@ export default function AdminDashboardPage() {
               sub: 'SEO articles',
               subAlert: false,
               valueColor: 'text-gray-900',
-              activeBg: 'bg-gray-900 text-white border-gray-900',
+              activeBg: 'bg-brand-orange text-white border-brand-orange',
               icon: <FileText className="w-4 h-4" />,
             },
             {
@@ -825,7 +825,7 @@ export default function AdminDashboardPage() {
               sub: 'Demand & searches',
               subAlert: false,
               valueColor: 'text-brand-orange',
-              activeBg: 'bg-gray-900 text-white border-gray-900',
+              activeBg: 'bg-brand-orange text-white border-brand-orange',
               icon: <Sparkles className="w-4 h-4" />,
             },
           ].map((tile) => {
@@ -844,8 +844,8 @@ export default function AdminDashboardPage() {
                 }}
                 className={`text-left p-3.5 rounded-xl border transition-all flex flex-col justify-between shadow-2xs ${
                   isActive
-                    ? `${tile.activeBg} shadow-md ring-2 ring-offset-1 ring-gray-900/20`
-                    : 'bg-gray-50/70 hover:bg-white border-gray-200 hover:border-brand-orange text-gray-900'
+                    ? `${tile.activeBg} shadow-md ring-2 ring-brand-orange/30`
+                    : 'ji-metric-tile bg-white dark:bg-neutral-900 hover:bg-orange-50/40 dark:hover:bg-neutral-800 border-gray-200 dark:border-neutral-800 hover:border-brand-orange text-gray-900 dark:text-neutral-100'
                 }`}
               >
                 <div className="flex items-center justify-between gap-1.5">

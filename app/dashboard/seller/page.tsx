@@ -569,13 +569,13 @@ function SellerDashboardContent() {
 
       {/* REFER & EARN FREE AD BOOSTS */}
       {referralStats && (
-        <div className="bg-gradient-to-r from-orange-50 via-amber-50/70 to-orange-50 border border-orange-200 rounded-2xl p-5 shadow-xs flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        <div className="ji-refer-banner bg-orange-50/70 dark:bg-neutral-900 border border-orange-200 dark:border-orange-500/30 rounded-2xl p-5 shadow-xs flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div className="space-y-1.5 max-w-2xl">
             <div className="flex flex-wrap items-center gap-2">
               <span className="px-2.5 py-0.5 rounded-full bg-brand-orange text-white text-[10px] font-black uppercase tracking-wider">
                 Refer &amp; Earn Free Boosts
               </span>
-              <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-black">
+              <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 text-[11px] font-black">
                 {Number(referralStats.free_boost_credits || 0)} Boost Day(s) Available
               </span>
             </div>
@@ -600,7 +600,7 @@ function SellerDashboardContent() {
               type="text"
               readOnly
               value={referralStats.referral_link || ''}
-              className="px-3 py-2.5 bg-white border border-orange-200 rounded-xl text-xs font-semibold text-gray-700 min-w-[230px] outline-none"
+              className="px-3 py-2.5 bg-white dark:bg-neutral-950 border border-orange-200 dark:border-neutral-700 rounded-xl text-xs font-semibold text-gray-700 dark:text-neutral-200 min-w-[230px] outline-none"
             />
             <button
               type="button"
@@ -645,7 +645,7 @@ function SellerDashboardContent() {
               value: ads.length,
               sub: `${totalViews.toLocaleString()} total views`,
               valueColor: 'text-gray-900',
-              activeBg: 'bg-gray-900 text-white border-gray-900',
+              activeBg: 'bg-brand-orange text-white border-brand-orange',
               isActive: activeTab === 'listings' && statusFilter === 'all',
               icon: <Package className="w-4 h-4" />,
               onSelect: () => {
@@ -698,7 +698,7 @@ function SellerDashboardContent() {
               value: chatQuotes.length,
               sub: 'Buyer threads',
               valueColor: 'text-brand-orange',
-              activeBg: 'bg-gray-900 text-white border-gray-900',
+              activeBg: 'bg-brand-orange text-white border-brand-orange',
               isActive: activeTab === 'messages',
               icon: <MessageCircle className="w-4 h-4" />,
               onSelect: () => setActiveTab('messages'),
@@ -709,7 +709,7 @@ function SellerDashboardContent() {
               value: offers.length,
               sub: 'Price offers',
               valueColor: 'text-brand-orange',
-              activeBg: 'bg-gray-900 text-white border-gray-900',
+              activeBg: 'bg-brand-orange text-white border-brand-orange',
               isActive: activeTab === 'offers',
               icon: <Coins className="w-4 h-4" />,
               onSelect: () => setActiveTab('offers'),
@@ -720,7 +720,7 @@ function SellerDashboardContent() {
               value: callbacks.length,
               sub: 'Phone requests',
               valueColor: 'text-brand-orange',
-              activeBg: 'bg-gray-900 text-white border-gray-900',
+              activeBg: 'bg-brand-orange text-white border-brand-orange',
               isActive: activeTab === 'callbacks',
               icon: <PhoneCall className="w-4 h-4" />,
               onSelect: () => setActiveTab('callbacks'),
@@ -742,7 +742,7 @@ function SellerDashboardContent() {
               value: myRequests.length,
               sub: 'Items you requested',
               valueColor: 'text-gray-900',
-              activeBg: 'bg-gray-900 text-white border-gray-900',
+              activeBg: 'bg-brand-orange text-white border-brand-orange',
               isActive: activeTab === 'my-requests',
               icon: <Sparkles className="w-4 h-4" />,
               onSelect: () => setActiveTab('my-requests'),
@@ -753,7 +753,7 @@ function SellerDashboardContent() {
               value: transactions.length,
               sub: 'Billing & credits',
               valueColor: 'text-gray-900',
-              activeBg: 'bg-gray-900 text-white border-gray-900',
+              activeBg: 'bg-brand-orange text-white border-brand-orange',
               isActive: activeTab === 'payments',
               icon: <Receipt className="w-4 h-4" />,
               onSelect: () => setActiveTab('payments'),
@@ -772,8 +772,8 @@ function SellerDashboardContent() {
               }}
               className={`text-left p-3.5 rounded-xl border transition-all flex flex-col justify-between shadow-2xs ${
                 tile.isActive
-                  ? `${tile.activeBg} shadow-md ring-2 ring-offset-1 ring-gray-900/20`
-                  : 'bg-gray-50/70 hover:bg-white border-gray-200 hover:border-brand-orange text-gray-900'
+                  ? `${tile.activeBg} shadow-md ring-2 ring-brand-orange/30`
+                  : 'ji-metric-tile bg-white dark:bg-neutral-900 hover:bg-orange-50/40 dark:hover:bg-neutral-800 border-gray-200 dark:border-neutral-800 hover:border-brand-orange text-gray-900 dark:text-neutral-100'
               }`}
             >
               <div className="flex items-center justify-between gap-1.5">
