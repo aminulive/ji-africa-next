@@ -114,6 +114,9 @@ export default function LoginPage() {
   const completeSession = (data: any) => {
     localStorage.setItem('ji_user', JSON.stringify(data.user));
     localStorage.setItem('ji_token', data.token);
+          if (typeof window !== 'undefined') {
+            sessionStorage.setItem('ji_pending_verify_email', email.trim().toLowerCase());
+          }
     window.dispatchEvent(new Event('ji_user_updated'));
     const dest = getPostAuthDestination();
     router.push(dest);
@@ -195,6 +198,69 @@ export default function LoginPage() {
     } catch (firstErr) {
       await new Promise((resolve) => setTimeout(resolve, 2500));
       return await fetch(url, init);
+    }
+  };
+
+  const verifyOtpNow = async (rawCode?: string) => {
+    if (submittingRef.current || loading) return;
+
+    let targetEmail = email.trim().toLowerCase();
+    if (!targetEmail && typeof window !== 'undefined') {
+      try {
+        const sessionEmail = sessionStorage.getItem('ji_pending_verify_email') || '';
+        const savedUser = JSON.parse(localStorage.getItem('ji_user') || '{}');
+        targetEmail = (sessionEmail || savedUser?.email || '').trim().toLowerCase();
+        if (targetEmail) setEmail(targetEmail);
+      } catch {}
+    }
+
+    const cleanOtp = String(rawCode ?? otpCode).replace(/\D/g, '').slice(0, 6);
+    if (cleanOtp.length !== 6) {
+      setError('Please enter or paste the full 6-digit verification code from your email.');
+      return;
+    }
+    if (!targetEmail) {
+      setError('Session email missing. Please log in and verify from your Profile page.');
+      return;
+    }
+
+    submittingRef.current = true;
+    setLoading(true);
+    setError('');
+    setSuccessMsg('');
+
+    try {
+      const res = await fetchWithWakeRetry(`${API_URL}/auth/verify-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: targetEmail, code: cleanOtp }),
+      });
+      const data = await parseApiResponse(res);
+      if (res.ok) {
+        if (typeof window !== 'undefined') {
+          sessionStorage.removeItem('ji_pending_verify_email');
+        }
+        if (data.user) {
+          localStorage.setItem('ji_user', JSON.stringify(data.user));
+          window.dispatchEvent(new Event('ji_user_updated'));
+        }
+        setSuccessMsg('Email verified! Redirecting...');
+        const dest = getPostAuthDestination();
+        router.push(dest);
+        router.refresh();
+        setTimeout(() => {
+          if (typeof window !== 'undefined' && window.location.pathname === '/login') {
+            window.location.href = dest;
+          }
+        }, 600);
+      } else {
+        setError(data.error || 'Invalid verification code. Please check and try again.');
+      }
+    } catch {
+      setError('Network error while verifying email. Please tap Verify Email again.');
+    } finally {
+      setLoading(false);
+      submittingRef.current = false;
     }
   };
 
@@ -338,52 +404,9 @@ export default function LoginPage() {
       }
 
       if (mode === 'verify') {
-        let targetEmail = email.trim().toLowerCase();
-        if (!targetEmail && typeof window !== 'undefined') {
-          try {
-            const savedUser = JSON.parse(localStorage.getItem('ji_user') || '{}');
-            if (savedUser?.email) {
-              targetEmail = String(savedUser.email).trim().toLowerCase();
-              setEmail(targetEmail);
-            }
-          } catch {}
-        }
-
-        const cleanOtp = otpCode.replace(/\D/g, '').slice(0, 6);
-        if (cleanOtp.length !== 6) {
-          setError('Please enter or paste the full 6-digit verification code from your email.');
-          setLoading(false);
-          return;
-        }
-        if (!targetEmail) {
-          setError('Session email missing. Please log in and verify from your Profile page.');
-          setLoading(false);
-          return;
-        }
-
-        const res = await fetchWithWakeRetry(`${API_URL}/auth/verify-email`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: targetEmail, code: cleanOtp }),
-        });
-        const data = await parseApiResponse(res);
-        if (res.ok) {
-          if (data.user) {
-            localStorage.setItem('ji_user', JSON.stringify(data.user));
-            window.dispatchEvent(new Event('ji_user_updated'));
-          }
-          setSuccessMsg('Email verified! Redirecting...');
-          const dest = getPostAuthDestination();
-          router.push(dest);
-          router.refresh();
-          setTimeout(() => {
-            if (typeof window !== 'undefined' && window.location.pathname === '/login') {
-              window.location.href = dest;
-            }
-          }, 650);
-        } else {
-          setError(data.error || 'Invalid verification code. Please check and try again.');
-        }
+        submittingRef.current = false;
+        setLoading(false);
+        await verifyOtpNow(otpCode);
         return;
       }
 
@@ -880,36 +903,64 @@ export default function LoginPage() {
 
         {/* --- MODE 3: EMAIL VERIFICATION + RESEND CODE --- */}
         {mode === 'verify' && (
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form
+            key="verify-email-form"
+            onSubmit={(e) => {
+              e.preventDefault();
+              verifyOtpNow(otpCode);
+            }}
+            className="space-y-4"
+          >
             <div className="flex items-center gap-2 text-brand-orange font-bold text-base">
               <MailCheck className="w-5 h-5" />
               <h2>Verify Your Email</h2>
             </div>
             <p className="text-xs text-gray-500">
-              Enter the 6-digit code sent to <strong>{email}</strong>. Check your Spam/Junk folder if you do not see it in your inbox.
+              Enter or paste the 6-digit code sent to <strong>{email}</strong>. Check your Spam/Junk folder if you do not see it in your inbox.
             </p>
             <input
               type="text"
               inputMode="numeric"
+              pattern="[0-9]*"
               autoComplete="one-time-code"
               value={otpCode}
-              onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              onChange={(e) => {
+                const digits = e.target.value.replace(/\D/g, '').slice(0, 6);
+                setOtpCode(digits);
+                if (digits.length === 6) {
+                  setError('');
+                  e.currentTarget.blur();
+                  setTimeout(() => verifyOtpNow(digits), 120);
+                }
+              }}
               onPaste={(e) => {
                 e.preventDefault();
                 const pasted = e.clipboardData.getData('text') || '';
                 const digits = pasted.replace(/\D/g, '').slice(0, 6);
                 setOtpCode(digits);
-                if (digits.length === 6) setError('');
+                if (digits.length === 6) {
+                  setError('');
+                  e.currentTarget.blur();
+                  setTimeout(() => verifyOtpNow(digits), 120);
+                }
               }}
               placeholder="000000"
               className="w-full px-4 py-3 border border-gray-200 rounded-lg text-center text-xl font-black tracking-[0.4em] bg-gray-50 focus:bg-white focus:border-brand-orange outline-none"
             />
             <button
-              type="submit"
+              type="button"
               disabled={loading}
-              className="w-full py-3.5 bg-brand-orange hover:bg-orange-700 text-white font-bold rounded-lg transition flex items-center justify-center"
+              onClick={() => verifyOtpNow(otpCode)}
+              className="w-full py-3.5 bg-brand-orange hover:bg-orange-700 active:scale-[0.99] text-white font-bold rounded-lg transition flex items-center justify-center gap-2 cursor-pointer touch-manipulation"
             >
-              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Verify Email'}
+              {loading ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>Verifying...</span>
+                </>
+              ) : (
+                'Verify Email'
+              )}
             </button>
 
             <div className="flex items-center justify-between pt-1">
@@ -930,12 +981,18 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={() => {
-                  router.push(getPostAuthDestination());
+                  const dest = getPostAuthDestination();
+                  router.push(dest);
                   router.refresh();
+                  setTimeout(() => {
+                    if (typeof window !== 'undefined' && window.location.pathname === '/login') {
+                      window.location.href = dest;
+                    }
+                  }, 500);
                 }}
                 className="text-xs font-semibold text-gray-500 hover:text-gray-800"
               >
-                Skip for now →
+                Skip for now &rarr;
               </button>
             </div>
           </form>
