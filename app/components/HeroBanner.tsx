@@ -35,11 +35,11 @@ export default function HeroBanner() {
           </div>
 
           <h1 className="text-lg md:text-xl font-extrabold tracking-tight leading-snug">
-            Buy &amp; Sell Clean Used Items Anywhere in Nigeria
+            Buy &amp; Sell New &amp; Used Items Anywhere in Nigeria
           </h1>
 
           <p className="text-[11px] md:text-xs text-white/95 leading-relaxed mt-0.5 max-w-xl">
-            Pay safely with <strong>JI Trust</strong> — funds stay in escrow until you receive and inspect your item, or chat directly with verified sellers on WhatsApp.
+            Pay safely with <strong>JI Trust</strong> — funds stay in escrow until you receive and inspect your item.
           </p>
         </div>
 

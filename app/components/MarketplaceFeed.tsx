@@ -516,7 +516,7 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
     <div className="flex flex-col lg:flex-row gap-6">
       {/* Desktop Categories Sidebar with Mini Thumbnails & Hover-to-Reveal Subcategory Flyout */}
       <aside
-        className="hidden lg:block w-72 shrink-0"
+        className="hidden lg:block w-72 shrink-0 relative z-30"
         onMouseLeave={scheduleCloseCategoryFlyout}
       >
         <div className="relative sticky top-20">
@@ -645,7 +645,7 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
             <div
               onMouseEnter={() => openCategoryFlyout(String(hoveredCatObj.id))}
               onMouseLeave={scheduleCloseCategoryFlyout}
-              className="absolute left-[calc(100%+6px)] top-0 w-[520px] xl:w-[620px] max-h-[calc(100vh-6rem)] overflow-y-auto bg-white dark:bg-neutral-900 rounded-xl border border-gray-200 dark:border-neutral-700 shadow-2xl z-40 p-4 before:content-[''] before:absolute before:-left-3 before:top-0 before:bottom-0 before:w-4"
+              className="absolute left-[calc(100%+6px)] top-0 w-[520px] xl:w-[620px] max-h-[calc(100vh-6rem)] overflow-y-auto bg-white dark:bg-neutral-900 rounded-xl border border-gray-200 dark:border-neutral-700 shadow-2xl z-50 p-4 before:content-[''] before:absolute before:-left-3 before:top-0 before:bottom-0 before:w-4"
             >
               {/* Flyout Header */}
               <div className="flex items-center justify-between pb-3 mb-3 border-b border-gray-100 dark:border-neutral-800">
