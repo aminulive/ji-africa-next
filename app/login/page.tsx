@@ -145,7 +145,17 @@ export default function LoginPage() {
   };
 
   const handleResendVerification = async () => {
-    if (!email || resendCooldown > 0 || resendingCode) return;
+    let targetEmail = email.trim();
+    if (!targetEmail && typeof window !== 'undefined') {
+      try {
+        const u = JSON.parse(localStorage.getItem('ji_user') || '{}');
+        if (u?.email) {
+          targetEmail = String(u.email).trim();
+          setEmail(targetEmail);
+        }
+      } catch {}
+    }
+    if (!targetEmail || resendCooldown > 0 || resendingCode) return;
     setResendingCode(true);
     setError('');
     setSuccessMsg('');
@@ -154,7 +164,7 @@ export default function LoginPage() {
       const res = await fetch(`${API_URL}/auth/resend-verification`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email: targetEmail }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -328,21 +338,51 @@ export default function LoginPage() {
       }
 
       if (mode === 'verify') {
-        const res = await fetch(`${API_URL}/auth/verify-email`, {
+        let targetEmail = email.trim().toLowerCase();
+        if (!targetEmail && typeof window !== 'undefined') {
+          try {
+            const savedUser = JSON.parse(localStorage.getItem('ji_user') || '{}');
+            if (savedUser?.email) {
+              targetEmail = String(savedUser.email).trim().toLowerCase();
+              setEmail(targetEmail);
+            }
+          } catch {}
+        }
+
+        const cleanOtp = otpCode.replace(/\D/g, '').slice(0, 6);
+        if (cleanOtp.length !== 6) {
+          setError('Please enter or paste the full 6-digit verification code from your email.');
+          setLoading(false);
+          return;
+        }
+        if (!targetEmail) {
+          setError('Session email missing. Please log in and verify from your Profile page.');
+          setLoading(false);
+          return;
+        }
+
+        const res = await fetchWithWakeRetry(`${API_URL}/auth/verify-email`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, code: otpCode }),
+          body: JSON.stringify({ email: targetEmail, code: cleanOtp }),
         });
-        const data = await res.json();
+        const data = await parseApiResponse(res);
         if (res.ok) {
           if (data.user) {
             localStorage.setItem('ji_user', JSON.stringify(data.user));
             window.dispatchEvent(new Event('ji_user_updated'));
           }
-          router.push(getPostAuthDestination());
+          setSuccessMsg('Email verified! Redirecting...');
+          const dest = getPostAuthDestination();
+          router.push(dest);
           router.refresh();
+          setTimeout(() => {
+            if (typeof window !== 'undefined' && window.location.pathname === '/login') {
+              window.location.href = dest;
+            }
+          }, 650);
         } else {
-          setError(data.error || 'Invalid verification code.');
+          setError(data.error || 'Invalid verification code. Please check and try again.');
         }
         return;
       }
@@ -850,10 +890,17 @@ export default function LoginPage() {
             </p>
             <input
               type="text"
-              maxLength={6}
-              required
+              inputMode="numeric"
+              autoComplete="one-time-code"
               value={otpCode}
-              onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
+              onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              onPaste={(e) => {
+                e.preventDefault();
+                const pasted = e.clipboardData.getData('text') || '';
+                const digits = pasted.replace(/\D/g, '').slice(0, 6);
+                setOtpCode(digits);
+                if (digits.length === 6) setError('');
+              }}
               placeholder="000000"
               className="w-full px-4 py-3 border border-gray-200 rounded-lg text-center text-xl font-black tracking-[0.4em] bg-gray-50 focus:bg-white focus:border-brand-orange outline-none"
             />
