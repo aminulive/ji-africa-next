@@ -489,13 +489,23 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
 
   // Hover-to-Reveal Desktop Category Flyout + Mobile Subcategory Sheet
   const [hoveredCatId, setHoveredCatId] = useState<string | null>(null);
+  const [flyoutTop, setFlyoutTop] = useState<number>(0);
   const [mobileSheetCat, setMobileSheetCat] = useState<any | null>(null);
   const hoverCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sidebarStickyRef = useRef<HTMLDivElement | null>(null);
 
-  const openCategoryFlyout = (catId: string) => {
+  const openCategoryFlyout = (catId: string, rowEl?: HTMLElement | null) => {
     if (hoverCloseTimerRef.current) {
       clearTimeout(hoverCloseTimerRef.current);
       hoverCloseTimerRef.current = null;
+    }
+    if (rowEl && sidebarStickyRef.current) {
+      const rowRect = rowEl.getBoundingClientRect();
+      const containerRect = sidebarStickyRef.current.getBoundingClientRect();
+      const relativeTop = rowRect.top - containerRect.top;
+      const maxAllowedTop =
+        typeof window !== 'undefined' ? Math.max(0, window.innerHeight - 380) : relativeTop;
+      setFlyoutTop(Math.max(0, Math.min(relativeTop, maxAllowedTop)));
     }
     setHoveredCatId(catId);
   };
@@ -519,7 +529,7 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
         className="hidden lg:block w-72 shrink-0 relative z-30"
         onMouseLeave={scheduleCloseCategoryFlyout}
       >
-        <div className="relative sticky top-20">
+        <div ref={sidebarStickyRef} className="relative sticky top-20">
           <div className="bg-white dark:bg-neutral-900 rounded-xl border border-gray-200 dark:border-neutral-800 shadow-sm overflow-hidden">
             <div className="bg-gray-50 dark:bg-neutral-950 px-4 py-3 border-b border-gray-200 dark:border-neutral-800 flex items-center justify-between">
               <div>
@@ -582,7 +592,7 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
                 return (
                   <li
                     key={c.id}
-                    onMouseEnter={() => openCategoryFlyout(String(c.id))}
+                    onMouseEnter={(e) => openCategoryFlyout(String(c.id), e.currentTarget)}
                   >
                     <button
                       type="button"
@@ -643,9 +653,10 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
           {/* Floating Hover-to-Reveal Subcategory Flyout Panel (Jiji-Style with Diagonal Safe-Zone) */}
           {hoveredCatObj && hoveredCatObj.tree && hoveredCatObj.tree.length > 0 && (
             <div
+              style={{ top: `${flyoutTop}px` }}
               onMouseEnter={() => openCategoryFlyout(String(hoveredCatObj.id))}
               onMouseLeave={scheduleCloseCategoryFlyout}
-              className="absolute left-[calc(100%+6px)] top-0 w-[520px] xl:w-[620px] max-h-[calc(100vh-6rem)] overflow-y-auto bg-white dark:bg-neutral-900 rounded-xl border border-gray-200 dark:border-neutral-700 shadow-2xl z-50 p-4 before:content-[''] before:absolute before:-left-3 before:top-0 before:bottom-0 before:w-4"
+              className="absolute left-[calc(100%+6px)] w-[520px] xl:w-[620px] max-h-[420px] overflow-y-auto bg-white dark:bg-neutral-900 rounded-xl border border-gray-200 dark:border-neutral-700 shadow-2xl z-50 p-4 transition-[top] duration-150 ease-out before:content-[''] before:absolute before:-left-4 before:-top-4 before:-bottom-4 before:w-5"
             >
               {/* Flyout Header */}
               <div className="flex items-center justify-between pb-3 mb-3 border-b border-gray-100 dark:border-neutral-800">
@@ -788,39 +799,6 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
             </div>
           </div>
         )}
-
-        {/* Quick Trust & Escrow Filter Strip */}
-        <div className="mb-4 bg-white dark:bg-neutral-900 rounded-xl border border-gray-200 dark:border-neutral-800 px-3.5 py-2.5 shadow-2xs flex flex-wrap items-center justify-between gap-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setJiTrustOnly(false)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
-                !jiTrustOnly
-                  ? 'bg-gray-900 text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              All Listings
-            </button>
-            <button
-              type="button"
-              onClick={() => setJiTrustOnly((v) => !v)}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-black transition inline-flex items-center gap-1.5 border ${
-                jiTrustOnly
-                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
-                  : 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
-              }`}
-            >
-              <ShieldCheck className="w-3.5 h-3.5" /> JI Trust Protected Only
-            </button>
-          </div>
-          <span className="text-[11px] font-semibold text-gray-500">
-            {jiTrustOnly
-              ? `Showing ${visibleAds.length} escrow-protected item(s)`
-              : 'Filter by JI Trust for 100% escrow payment safety'}
-          </span>
-        </div>
 
         {/* Mobile Horizontal Category Photo Circles */}
         <div className="block lg:hidden mb-4 -mx-4 px-4 sm:mx-0 sm:px-0">
@@ -1376,6 +1354,7 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
               onClick={() => setShowFilters((f) => !f)}
               className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-md border shadow-sm transition ${
                 showFilters ||
+                jiTrustOnly ||
                 minPrice ||
                 maxPrice ||
                 conditionFilter !== 'all' ||
@@ -1412,7 +1391,38 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
 
         {/* Collapsible Industry-Specific Type, Brand, Model, Condition & Price Bar */}
         {showFilters && (
-          <div className="mb-4 bg-white p-3.5 rounded-xl border border-gray-200 shadow-sm grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          <div className="mb-4 bg-white dark:bg-neutral-900 p-3.5 rounded-xl border border-gray-200 dark:border-neutral-800 shadow-sm grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <div className="col-span-2 sm:col-span-4 pb-2.5 mb-0.5 border-b border-gray-100 dark:border-neutral-800 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setJiTrustOnly(false)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                    !jiTrustOnly
+                      ? 'bg-gray-900 text-white'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  All Listings
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setJiTrustOnly((v) => !v)}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-black transition inline-flex items-center gap-1.5 border ${
+                    jiTrustOnly
+                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                      : 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
+                  }`}
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" /> JI Trust Protected Only
+                </button>
+              </div>
+              <span className="text-[11px] font-semibold text-gray-500">
+                {jiTrustOnly
+                  ? `Showing ${visibleAds.length} escrow-protected item(s)`
+                  : 'Filter by JI Trust for 100% escrow payment safety'}
+              </span>
+            </div>
             <div>
               <label className="block text-[10px] font-bold uppercase text-gray-400 mb-1">
                 Type
