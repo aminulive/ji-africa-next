@@ -394,6 +394,11 @@ export default function LoginPage() {
           setSuccessMsg(
             `Account created! We sent a 6-digit verification code to ${email}. Enter it below or continue to your shop.`
           );
+          if (typeof window !== 'undefined') {
+            sessionStorage.setItem('ji_pending_verify_email', email.trim().toLowerCase());
+          }
+          submittingRef.current = false;
+          setLoading(false);
           setMode('verify');
           window.scrollTo({ top: 0, behavior: 'smooth' });
         } else {
@@ -445,6 +450,7 @@ export default function LoginPage() {
       setError('Network error. Is the server waking up? Please try again.');
     } finally {
       setLoading(false);
+      submittingRef.current = false;
     }
   };
 
