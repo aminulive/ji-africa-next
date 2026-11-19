@@ -1,5 +1,6 @@
 "use client";
 
+import { getAdPath } from '../../lib/adUrl';
 import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -858,7 +859,7 @@ function SellerDashboardContent() {
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
                         <Link
-                          href={`/ad/${ad.id}`}
+                          href={getAdPath(ad)}
                           className="font-bold text-sm text-gray-900 hover:text-brand-orange"
                         >
                           {ad.title}
@@ -973,7 +974,7 @@ function SellerDashboardContent() {
                     </button>
 
                     <Link
-                      href={`/ad/${ad.id}`}
+                      href={getAdPath(ad)}
                       className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-bold flex items-center gap-1"
                     >
                       <ExternalLink className="w-3.5 h-3.5" /> View
@@ -1660,7 +1661,7 @@ function SellerDashboardContent() {
                               <p className="text-xs text-gray-600">{q.message}</p>
                               {q.ad_id && q.ad_title && (
                                 <Link
-                                  href={`/ad/${q.ad_id}`}
+                                  href={`/ad/${q.ad_slug || q.ad_id}`}
                                   className="inline-block text-[11px] font-bold text-blue-600 hover:underline"
                                 >
                                   View Linked Listing: {q.ad_title} &rarr;

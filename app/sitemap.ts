@@ -1,3 +1,4 @@
+import { getAdUrl } from './lib/adUrl';
 import type { MetadataRoute } from 'next';
 
 const SITE_URL = 'https://www.ji.africa';
@@ -38,7 +39,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       adRoutes = ads
         .filter((ad: any) => ad.status === 'Available')
         .map((ad: any) => ({
-          url: `${SITE_URL}/ad/${ad.id}`,
+          url: getAdUrl(ad),
           lastModified: new Date(ad.created_at || Date.now()),
           changeFrequency: 'daily',
           priority: 0.85,

@@ -1,5 +1,6 @@
 "use client";
 
+import { getAdPath } from '../lib/adUrl';
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Clock, X } from "lucide-react";
@@ -77,7 +78,7 @@ export default function RecentlyViewedStrip() {
         {items.map((item) => (
           <Link
             key={item.id}
-            href={`/ad/${item.id}`}
+            href={getAdPath(item)}
             className="w-44 shrink-0 rounded-lg border border-gray-200 hover:border-brand-orange p-2 flex items-center gap-2.5 transition bg-gray-50/50 hover:bg-orange-50/30"
           >
             <img

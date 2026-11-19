@@ -468,7 +468,7 @@ function MessagesWorkspace() {
                           : `Seller: ${activeThread.seller_shop_name || activeThread.seller_name}`}
                       </p>
                       <Link
-                        href={`/ad/${activeThread.ad_id}`}
+                        href={`/ad/${activeThread.ad_slug || activeThread.ad_id}`}
                         className="text-[11px] font-bold text-brand-orange hover:underline inline-flex items-center gap-0.5 shrink-0"
                       >
                         Ad <ExternalLink className="w-3 h-3" />

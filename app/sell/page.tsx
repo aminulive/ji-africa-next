@@ -1,5 +1,6 @@
 "use client";
 
+import { getAdPath, getAdUrl, slugifyAdTitle } from '../lib/adUrl';
 import { useState, useEffect, Suspense, useMemo, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -88,6 +89,8 @@ function SellFormContent() {
   const [showJiTrustTerms, setShowJiTrustTerms] = useState(false);
   const [smartCaption, setSmartCaption] = useState('');
   const [smartParsedNote, setSmartParsedNote] = useState('');
+  const [isAdminUser, setIsAdminUser] = useState(false);
+  const [customSlug, setCustomSlug] = useState('');
 
   const handleSmartCaptionAutoFill = (overrideText?: string) => {
     const raw = (overrideText !== undefined ? overrideText : smartCaption).trim();
@@ -241,6 +244,10 @@ function SellFormContent() {
       router.push('/login');
       return;
     }
+    try {
+      const u = JSON.parse(localStorage.getItem('ji_user') || '{}');
+      setIsAdminUser(['admin', 'super_admin'].includes(String(u?.role || '').toLowerCase()));
+    } catch {}
 
     async function initData() {
       try {
@@ -280,6 +287,7 @@ function SellFormContent() {
 
           if (adData) {
             setTitle(adData.title || '');
+            setCustomSlug(adData.slug || '');
             setCategoryId(String(adData.category_id || ''));
             setSubcategory(adData.subcategory || '');
             setSubSubcategory(adData.sub_subcategory || '');
@@ -474,7 +482,7 @@ function SellFormContent() {
     if (!publishedShareAd || autoRedirectPaused || redirectCountdown === null) return;
     if (redirectCountdown <= 0) {
       const targetUrl = publishedShareAd.id
-        ? `/ad/${publishedShareAd.id}`
+        ? getAdPath(publishedShareAd)
         : '/dashboard/seller';
       router.push(targetUrl);
       const fallbackTimer = setTimeout(() => {
@@ -513,6 +521,9 @@ function SellFormContent() {
 
     const formData = new FormData();
     formData.append('title', title.trim());
+    if (isAdminUser) {
+      formData.append('custom_slug', customSlug.trim());
+    }
     formData.append('category_id', categoryId);
     formData.append('subcategory', subcategory || '');
     formData.append('sub_subcategory', subSubcategory || '');
@@ -559,6 +570,7 @@ function SellFormContent() {
           router.refresh();
         } else {
           const newId = created.adId || created.id || '';
+          const newSlug = created.slug || '';
           let previewImg = '';
           try {
             if (selectedFiles[0]) {
@@ -573,6 +585,7 @@ function SellFormContent() {
 
           const snapshot = {
             id: newId,
+            slug: newSlug,
             title: title.trim(),
             price,
             condition,
@@ -628,7 +641,7 @@ function SellFormContent() {
   // Full-Page Confirmation Screen on New Ad Publish (Prevents mobile confusion & duplicate submits)
   if (publishedShareAd) {
     const adUrl = publishedShareAd.id
-      ? `https://www.ji.africa/ad/${publishedShareAd.id}`
+      ? getAdUrl(publishedShareAd)
       : 'https://www.ji.africa';
     const waShareText = `Check out my advert on *ji.africa*:\n*${publishedShareAd.title}* — ₦${Number(
       publishedShareAd.price || 0
@@ -692,7 +705,7 @@ function SellFormContent() {
                 type="button"
                 onClick={() => {
                   const target = publishedShareAd.id
-                    ? `/ad/${publishedShareAd.id}`
+                    ? getAdPath(publishedShareAd)
                     : '/dashboard/seller';
                   router.push(target);
                 }}
@@ -828,6 +841,33 @@ function SellFormContent() {
               className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:border-brand-orange outline-none transition"
             />
           </div>
+
+          {isAdminUser && (
+            <div className="bg-orange-50/70 border border-orange-200 rounded-xl p-3.5 space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <label className="block text-[11px] font-black text-brand-orange uppercase">
+                  Admin Custom SEO URL Slug (Optional)
+                </label>
+                <span className="text-[10px] font-bold text-gray-500">
+                  Leave blank to auto-generate from title
+                </span>
+              </div>
+              <input
+                type="text"
+                value={customSlug}
+                onChange={(e) => setCustomSlug(slugifyAdTitle(e.target.value))}
+                placeholder="e.g. 2025-honda-hr-v-abuja"
+                className="w-full px-3.5 py-2 bg-white border border-orange-200 rounded-lg text-xs font-mono text-gray-800 focus:border-brand-orange outline-none transition"
+              />
+              <p className="text-[11px] text-gray-600 truncate">
+                Live URL preview:{' '}
+                <span className="font-mono font-bold text-gray-900">
+                  https://www.ji.africa/ad/
+                  {customSlug || slugifyAdTitle(title) || 'your-item-name'}
+                </span>
+              </p>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Custom 4-Level Category Trigger */}

@@ -1,5 +1,6 @@
 "use client";
 
+import { getAdPath } from '../../lib/adUrl';
 import { formatLastSeen } from "../../utils/activity";
 import { useState, useEffect, Suspense } from "react";
 import { useParams } from "next/navigation";
@@ -507,7 +508,7 @@ function ShopContent() {
                         }`}
                       />
                     </button>
-                    <Link href={`/ad/${ad.id}`} className="flex flex-col h-full">
+                    <Link href={getAdPath(ad)} className="flex flex-col h-full">
                       <div className="relative aspect-[4/3] sm:aspect-square bg-gray-100 overflow-hidden">
                         <img
                           src={getAdPrimaryImage(ad)}
@@ -554,7 +555,7 @@ function ShopContent() {
               {visibleAds.map((ad) => (
                 <Link
                   key={ad.id}
-                  href={`/ad/${ad.id}`}
+                  href={getAdPath(ad)}
                   className="bg-white rounded-xl overflow-hidden border border-gray-200 hover:shadow-lg hover:border-brand-orange transition-all duration-300 flex flex-row group relative h-32 md:h-40"
                 >
                   <div className="relative w-32 md:w-48 bg-gray-100 overflow-hidden shrink-0">

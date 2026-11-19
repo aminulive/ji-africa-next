@@ -1,5 +1,6 @@
 "use client";
 
+import { getAdPath } from '../lib/adUrl';
 import { useState, useEffect, useCallback, useMemo, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -1558,7 +1559,7 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
                 {visibleAds.map((ad: any) => (
                   <Link
                     key={ad.id}
-                    href={`/ad/${ad.id}`}
+                    href={getAdPath(ad)}
                     className="bg-white rounded-xl overflow-hidden border border-gray-200 hover:shadow-lg hover:scale-[1.01] hover:border-brand-orange transition-all duration-300 flex flex-row group relative h-32 md:h-40"
                   >
                     <button

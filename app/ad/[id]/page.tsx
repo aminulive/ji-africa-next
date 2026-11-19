@@ -1,3 +1,5 @@
+import { permanentRedirect } from "next/navigation";
+import { getAdPath, getAdUrl } from "../../lib/adUrl";
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { Loader2 } from "lucide-react";
@@ -41,7 +43,12 @@ async function fetchSingleAd(id: string) {
     }).catch(() => null);
     if (listRes && listRes.ok) {
       const listData = await listRes.json();
-      return (listData.ads || []).find((a: any) => String(a.id) === String(id)) || null;
+      const trailingId = id.match(/-(\d+)$/)?.[1] || id;
+      return (
+        (listData.ads || []).find(
+          (a: any) => String(a.slug) === String(id) || String(a.id) === String(trailingId)
+        ) || null
+      );
     }
   } catch (err) {
     console.error("fetchSingleAd error:", err);
@@ -58,7 +65,7 @@ export async function generateStaticParams() {
     const data = await res.json();
     const list = Array.isArray(data?.ads) ? data.ads : [];
     if (list.length === 0) return [{ id: "1" }];
-    return list.map((ad: any) => ({ id: String(ad.id) }));
+    return list.map((ad: any) => ({ id: String(ad.slug || ad.id) }));
   } catch {
     return [{ id: "1" }];
   }
@@ -90,14 +97,18 @@ export async function generateMetadata({
     .join(" — ")
     .slice(0, 180);
   const imageUrl = resolvePrimaryImage(ad.image);
-  const canonicalUrl = `https://www.ji.africa/ad/${ad.id}`;
+  const canonicalUrl = getAdUrl(ad);
 
   return {
     title,
     description: description || `Buy ${ad.title} for ${formattedPrice} on ji.africa`,
+    alternates: {
+      canonical: canonicalUrl,
+    },
     openGraph: {
       title,
       description: description || `Available in ${location} on ji.africa`,
+      url: canonicalUrl,
       siteName: "ji.africa",
       type: "website",
       images: [
@@ -158,7 +169,8 @@ async function getAdAndSimilar(id: string) {
 
 async function AdLoader({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { ad, similarAds } = await getAdAndSimilar(id);
+  const decodedId = decodeURIComponent(id);
+  const { ad, similarAds } = await getAdAndSimilar(decodedId);
 
   if (!ad) {
     return (
@@ -168,6 +180,11 @@ async function AdLoader({ params }: { params: Promise<{ id: string }> }) {
         </p>
       </div>
     );
+  }
+
+  const canonicalPath = getAdPath(ad);
+  if (canonicalPath !== `/ad/${decodedId}` && canonicalPath !== "/") {
+    permanentRedirect(canonicalPath);
   }
 
   return <AdDetailsClient ad={ad} similarAds={similarAds} />;

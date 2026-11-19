@@ -1,5 +1,6 @@
 "use client";
 
+import { getAdPath } from '../../lib/adUrl';
 import {
   useState,
   useEffect,
@@ -909,7 +910,7 @@ export default function AdminDashboardPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <Link
-                          href={`/ad/${rep.ad_id}`}
+                          href={`/ad/${rep.ad_slug || rep.ad_id}`}
                           className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-lg text-xs font-bold"
                         >
                           Inspect Ad
@@ -969,7 +970,7 @@ export default function AdminDashboardPage() {
                       <div>
                         <div className="flex items-center gap-2">
                           <Link
-                            href={`/ad/${ad.id}`}
+                            href={getAdPath(ad)}
                             className="font-bold text-sm text-gray-900 hover:text-brand-orange"
                           >
                             {ad.title}
@@ -2111,7 +2112,7 @@ export default function AdminDashboardPage() {
               {(marketIntel.mostViewed || []).map((item: any, idx: number) => (
                 <div key={item.id} className="px-4 py-3 flex flex-wrap items-center justify-between gap-2 text-xs">
                   <div className="min-w-0">
-                    <Link href={`/ad/${item.id}`} className="font-black text-gray-900 hover:text-brand-orange">
+                    <Link href={getAdPath(item)} className="font-black text-gray-900 hover:text-brand-orange">
                       #{idx + 1} • {item.title}
                     </Link>
                     <p className="text-[11px] text-gray-500">

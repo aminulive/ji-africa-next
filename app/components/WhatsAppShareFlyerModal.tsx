@@ -1,5 +1,6 @@
 "use client";
 
+import { getAdUrl } from '../lib/adUrl';
 import { useState, useEffect, useRef } from "react";
 import { Download, Copy, MessageCircle, Check, X, ShieldCheck } from "lucide-react";
 
@@ -36,7 +37,7 @@ export default function WhatsAppShareFlyerModal({
   const [copiedText, setCopiedText] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
 
-  const adUrl = `https://www.ji.africa/ad/${ad.id}`;
+  const adUrl = getAdUrl(ad);
   const formattedPrice = "₦" + Number(ad.price || 0).toLocaleString("en-NG");
   const locationText = ad.shop_address || "Nigeria";
   const sellerPhone = String(ad.seller_phone || sellerPhoneFallback || "").trim();

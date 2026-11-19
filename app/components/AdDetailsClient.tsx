@@ -1,5 +1,6 @@
 "use client";
 
+import { getAdPath, getAdUrl } from '../lib/adUrl';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -62,7 +63,7 @@ export default function AdDetailsClient({
   const [isSaved, setIsSaved] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [toast, setToast] = useState('');
-  const [adPageUrl, setAdPageUrl] = useState(`https://www.ji.africa/ad/${ad.id}`);
+  const [adPageUrl, setAdPageUrl] = useState(getAdUrl(ad));
   const [viewsCount, setViewsCount] = useState<number>(Number(ad.views_count) || 0);
 
   // Reviews State
@@ -196,7 +197,7 @@ export default function AdDetailsClient({
   const handleStartInAppChat = async () => {
     const token = localStorage.getItem('ji_token');
     if (!token || !currentUser) {
-      localStorage.setItem('ji_redirect_after_login', `/ad/${ad.id}`);
+      localStorage.setItem('ji_redirect_after_login', getAdPath(ad));
       router.push('/login');
       return;
     }
@@ -261,7 +262,7 @@ export default function AdDetailsClient({
     const shareUrl =
       typeof window !== 'undefined'
         ? window.location.href
-        : `https://www.ji.africa/ad/${ad?.id || ''}`;
+        : getAdUrl(ad);
     const shareTitle = ad?.title || 'Listing on ji.africa';
     const shareText = `${shareTitle} — ₦${Number(ad?.price || 0).toLocaleString('en-NG')} on ji.africa`;
 
@@ -1342,7 +1343,7 @@ export default function AdDetailsClient({
 
               <div className="grid grid-cols-2 gap-2.5">
                 <a
-                  href={`https://wa.me/?text=${encodeURIComponent(`${ad.title} (₦${Number(ad.price || 0).toLocaleString('en-NG')}) - https://www.ji.africa/ad/${ad.id}`)}`}
+                  href={`https://wa.me/?text=${encodeURIComponent(`${ad.title} (₦${Number(ad.price || 0).toLocaleString('en-NG')}) - ${getAdUrl(ad)}`)}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="py-2.5 px-3 rounded-xl bg-[#25D366]/15 hover:bg-[#25D366]/25 text-[#128C7E] text-xs font-black text-center transition"
@@ -1350,7 +1351,7 @@ export default function AdDetailsClient({
                   WhatsApp
                 </a>
                 <a
-                  href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`${ad.title} (₦${Number(ad.price || 0).toLocaleString('en-NG')}) on @jiafrica`)}&url=${encodeURIComponent(`https://www.ji.africa/ad/${ad.id}`)}`}
+                  href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`${ad.title} (₦${Number(ad.price || 0).toLocaleString('en-NG')}) on @jiafrica`)}&url=${encodeURIComponent(`${getAdUrl(ad)}`)}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="py-2.5 px-3 rounded-xl bg-gray-900 hover:bg-black text-white text-xs font-black text-center transition"
@@ -1358,7 +1359,7 @@ export default function AdDetailsClient({
                   Post on X
                 </a>
                 <a
-                  href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(`https://www.ji.africa/ad/${ad.id}`)}`}
+                  href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(`${getAdUrl(ad)}`)}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="py-2.5 px-3 rounded-xl bg-blue-600/15 hover:bg-blue-600/25 text-blue-700 text-xs font-black text-center transition"
@@ -1366,7 +1367,7 @@ export default function AdDetailsClient({
                   Facebook
                 </a>
                 <a
-                  href={`https://t.me/share/url?url=${encodeURIComponent(`https://www.ji.africa/ad/${ad.id}`)}&text=${encodeURIComponent(`${ad.title} (₦${Number(ad.price || 0).toLocaleString('en-NG')})`)}`}
+                  href={`https://t.me/share/url?url=${encodeURIComponent(`${getAdUrl(ad)}`)}&text=${encodeURIComponent(`${ad.title} (₦${Number(ad.price || 0).toLocaleString('en-NG')})`)}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="py-2.5 px-3 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 text-sky-700 text-xs font-black text-center transition"
@@ -1379,14 +1380,14 @@ export default function AdDetailsClient({
                 <input
                   type="text"
                   readOnly
-                  value={`https://www.ji.africa/ad/${ad.id}`}
+                  value={`${getAdUrl(ad)}`}
                   className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-700 outline-none"
                 />
                 <button
                   type="button"
                   onClick={async () => {
                     try {
-                      await navigator.clipboard?.writeText(`https://www.ji.africa/ad/${ad.id}`);
+                      await navigator.clipboard?.writeText(`${getAdUrl(ad)}`);
                       setCopiedShareLink(true);
                       setTimeout(() => setCopiedShareLink(false), 3000);
                     } catch {}

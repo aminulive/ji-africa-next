@@ -1,5 +1,6 @@
 "use client";
 
+import { slugifyAdTitle } from "../lib/adUrl";
 import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -143,8 +144,8 @@ export default function FreeWhatsAppFlyerPage() {
   const displayTitle = title.trim() || "Your Product Title Here";
   const displayLocation = location.trim() || "Nigeria";
   const displayPhone = phoneOnFlyer.trim();
-  const displayLinkText = linkedAdId ? `ji.africa/ad/${linkedAdId}` : "ji.africa";
-  const fullShareUrl = linkedAdId ? `https://www.ji.africa/ad/${linkedAdId}` : "https://www.ji.africa";
+  const displayLinkText = linkedAdId ? `ji.africa/ad/${slugifyAdTitle(title) ? `${slugifyAdTitle(title)}-${linkedAdId}` : linkedAdId}` : "ji.africa";
+  const fullShareUrl = linkedAdId ? `https://www.ji.africa/ad/${slugifyAdTitle(title) ? `${slugifyAdTitle(title)}-${linkedAdId}` : linkedAdId}` : "https://www.ji.africa";
 
   const whatsappCaption = [
     `🔥 *${displayTitle}*`,
@@ -419,7 +420,7 @@ export default function FreeWhatsAppFlyerPage() {
       if (res.ok && data.adId) {
         const newId = Number(data.adId);
         setLinkedAdId(newId);
-        setStatusMsg(`Published live to ji.africa/ad/${newId} & downloading flyer!`);
+        setStatusMsg(`Published live to ji.africa/ad/${slugifyAdTitle(title) ? `${slugifyAdTitle(title)}-${newId}` : newId} & downloading flyer!`);
         setTimeout(() => {
           triggerDownload();
         }, 350);
