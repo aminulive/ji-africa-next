@@ -567,30 +567,6 @@ function SellerDashboardContent() {
         </div>
       </div>
 
-      {/* KPI Metrics */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-          <p className="text-[11px] font-bold text-gray-400 uppercase">Total Adverts</p>
-          <p className="text-2xl font-black text-gray-900 mt-1">{ads.length}</p>
-        </div>
-        <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-          <p className="text-[11px] font-bold text-gray-400 uppercase">Active Listings</p>
-          <p className="text-2xl font-black text-emerald-600 mt-1">{activeAdsCount}</p>
-        </div>
-        <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-          <p className="text-[11px] font-bold text-gray-400 uppercase">Total Ad Views</p>
-          <p className="text-2xl font-black text-blue-600 mt-1">{totalViews.toLocaleString()}</p>
-        </div>
-        <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-          <p className="text-[11px] font-bold text-gray-400 uppercase">VIP Boosted</p>
-          <p className="text-2xl font-black text-amber-500 mt-1">{vipAdsCount}</p>
-        </div>
-        <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-          <p className="text-[11px] font-bold text-gray-400 uppercase">Callback Leads</p>
-          <p className="text-2xl font-black text-brand-orange mt-1">{callbacks.length}</p>
-        </div>
-      </div>
-
       {/* REFER & EARN FREE AD BOOSTS */}
       {referralStats && (
         <div className="bg-gradient-to-r from-orange-50 via-amber-50/70 to-orange-50 border border-orange-200 rounded-2xl p-5 shadow-xs flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
@@ -650,81 +626,188 @@ function SellerDashboardContent() {
         </div>
       )}
 
-      {/* Section Tabs */}
-      <div className="flex flex-wrap gap-2 bg-white p-2 rounded-xl border border-gray-200 shadow-sm">
-        <button
-          type="button"
-          onClick={() => setActiveTab('listings')}
-          className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 transition ${
-            activeTab === 'listings' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100'
-          }`}
-        >
-          <Package className="w-4 h-4" /> My Listings ({ads.length})
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('trust')}
-          className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 transition ${
-            activeTab === 'trust' ? 'bg-emerald-700 text-white' : 'text-emerald-800 bg-emerald-50 hover:bg-emerald-100'
-          }`}
-        >
-          <ShieldCheck className="w-4 h-4" /> JI Trust Escrow ({trustOrders.length})
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('messages')}
-          className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 transition ${
-            activeTab === 'messages' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100'
-          }`}
-        >
-          <MessageCircle className="w-4 h-4 text-brand-orange" /> Chats &amp; Quotes ({chatQuotes.length})
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('offers')}
-          className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 transition ${
-            activeTab === 'offers' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100'
-          }`}
-        >
-          <Coins className="w-4 h-4 text-brand-orange" /> Buyer Offers ({offers.length})
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('callbacks')}
-          className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 transition ${
-            activeTab === 'callbacks' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100'
-          }`}
-        >
-          <PhoneCall className="w-4 h-4" /> Buyer Callbacks ({callbacks.length})
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('requests')}
-          className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 transition ${
-            activeTab === 'requests' ? 'bg-brand-orange text-white' : 'text-orange-900 bg-orange-50 hover:bg-orange-100'
-          }`}
-        >
-          <Megaphone className="w-4 h-4" /> Buyer Leads ({buyerLeads.length})
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('my-requests')}
-          className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 transition ${
-            activeTab === 'my-requests' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100'
-          }`}
-        >
-          <Sparkles className="w-4 h-4 text-brand-orange" /> My Requests ({myRequests.length})
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('payments')}
-          className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 transition ${
-            activeTab === 'payments' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100'
-          }`}
-        >
-          <Receipt className="w-4 h-4" /> VIP Boost Receipts ({transactions.length})
-        </button>
+      {/* Unified Clickable Metric & Section Tiles */}
+      <div className="bg-white p-3 sm:p-4 rounded-2xl border border-gray-200 shadow-sm space-y-2.5">
+        <div className="flex items-center justify-between px-1">
+          <p className="text-[11px] font-black uppercase tracking-wider text-gray-500">
+            Seller Overview — Tap any card to view items
+          </p>
+          <span className="text-[11px] font-bold text-blue-600 flex items-center gap-1">
+            <Eye className="w-3.5 h-3.5" /> {totalViews.toLocaleString()} Total Views
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+          {[
+            {
+              id: 'all-listings',
+              label: 'My Listings',
+              value: ads.length,
+              sub: `${totalViews.toLocaleString()} total views`,
+              valueColor: 'text-gray-900',
+              activeBg: 'bg-gray-900 text-white border-gray-900',
+              isActive: activeTab === 'listings' && statusFilter === 'all',
+              icon: <Package className="w-4 h-4" />,
+              onSelect: () => {
+                setActiveTab('listings');
+                setStatusFilter('all');
+              },
+            },
+            {
+              id: 'active-listings',
+              label: 'Active Listings',
+              value: activeAdsCount,
+              sub: 'Live on marketplace',
+              valueColor: 'text-emerald-600',
+              activeBg: 'bg-emerald-700 text-white border-emerald-700',
+              isActive: activeTab === 'listings' && statusFilter === 'Available',
+              icon: <CheckCircle2 className="w-4 h-4" />,
+              onSelect: () => {
+                setActiveTab('listings');
+                setStatusFilter('Available');
+              },
+            },
+            {
+              id: 'vip-boosted',
+              label: 'VIP Boosted',
+              value: vipAdsCount,
+              sub: 'Priority placement',
+              valueColor: 'text-amber-500',
+              activeBg: 'bg-amber-500 text-gray-950 border-amber-500',
+              isActive: activeTab === 'listings' && statusFilter === 'VIP',
+              icon: <Sparkles className="w-4 h-4" />,
+              onSelect: () => {
+                setActiveTab('listings');
+                setStatusFilter('VIP');
+              },
+            },
+            {
+              id: 'trust',
+              label: 'JI Trust Escrow',
+              value: trustOrders.length,
+              sub: 'Escrow orders',
+              valueColor: 'text-emerald-600',
+              activeBg: 'bg-emerald-700 text-white border-emerald-700',
+              isActive: activeTab === 'trust',
+              icon: <ShieldCheck className="w-4 h-4" />,
+              onSelect: () => setActiveTab('trust'),
+            },
+            {
+              id: 'messages',
+              label: 'Chats & Quotes',
+              value: chatQuotes.length,
+              sub: 'Buyer threads',
+              valueColor: 'text-brand-orange',
+              activeBg: 'bg-gray-900 text-white border-gray-900',
+              isActive: activeTab === 'messages',
+              icon: <MessageCircle className="w-4 h-4" />,
+              onSelect: () => setActiveTab('messages'),
+            },
+            {
+              id: 'offers',
+              label: 'Buyer Offers',
+              value: offers.length,
+              sub: 'Price offers',
+              valueColor: 'text-brand-orange',
+              activeBg: 'bg-gray-900 text-white border-gray-900',
+              isActive: activeTab === 'offers',
+              icon: <Coins className="w-4 h-4" />,
+              onSelect: () => setActiveTab('offers'),
+            },
+            {
+              id: 'callbacks',
+              label: 'Callback Leads',
+              value: callbacks.length,
+              sub: 'Phone requests',
+              valueColor: 'text-brand-orange',
+              activeBg: 'bg-gray-900 text-white border-gray-900',
+              isActive: activeTab === 'callbacks',
+              icon: <PhoneCall className="w-4 h-4" />,
+              onSelect: () => setActiveTab('callbacks'),
+            },
+            {
+              id: 'requests',
+              label: 'Buyer Leads',
+              value: buyerLeads.length,
+              sub: 'Matching requests',
+              valueColor: 'text-brand-orange',
+              activeBg: 'bg-brand-orange text-white border-brand-orange',
+              isActive: activeTab === 'requests',
+              icon: <Megaphone className="w-4 h-4" />,
+              onSelect: () => setActiveTab('requests'),
+            },
+            {
+              id: 'my-requests',
+              label: 'My Requests',
+              value: myRequests.length,
+              sub: 'Items you requested',
+              valueColor: 'text-gray-900',
+              activeBg: 'bg-gray-900 text-white border-gray-900',
+              isActive: activeTab === 'my-requests',
+              icon: <Sparkles className="w-4 h-4" />,
+              onSelect: () => setActiveTab('my-requests'),
+            },
+            {
+              id: 'payments',
+              label: 'Boost Receipts',
+              value: transactions.length,
+              sub: 'Billing & credits',
+              valueColor: 'text-gray-900',
+              activeBg: 'bg-gray-900 text-white border-gray-900',
+              isActive: activeTab === 'payments',
+              icon: <Receipt className="w-4 h-4" />,
+              onSelect: () => setActiveTab('payments'),
+            },
+          ].map((tile) => (
+            <button
+              key={tile.id}
+              type="button"
+              onClick={() => {
+                tile.onSelect();
+                if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+                  document
+                    .getElementById('seller-section-panel')
+                    ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+              }}
+              className={`text-left p-3.5 rounded-xl border transition-all flex flex-col justify-between shadow-2xs ${
+                tile.isActive
+                  ? `${tile.activeBg} shadow-md ring-2 ring-offset-1 ring-gray-900/20`
+                  : 'bg-gray-50/70 hover:bg-white border-gray-200 hover:border-brand-orange text-gray-900'
+              }`}
+            >
+              <div className="flex items-center justify-between gap-1.5">
+                <span
+                  className={`text-[10px] font-extrabold uppercase tracking-wide truncate ${
+                    tile.isActive ? 'opacity-85' : 'text-gray-500'
+                  }`}
+                >
+                  {tile.label}
+                </span>
+                <span className={tile.isActive ? 'opacity-90' : 'text-gray-400'}>
+                  {tile.icon}
+                </span>
+              </div>
+              <p
+                className={`text-2xl font-black mt-1.5 leading-none ${
+                  tile.isActive ? '' : tile.valueColor
+                }`}
+              >
+                {tile.value}
+              </p>
+              <p
+                className={`text-[10px] font-bold mt-1.5 truncate ${
+                  tile.isActive ? 'opacity-80' : 'text-gray-400'
+                }`}
+              >
+                {tile.sub}
+              </p>
+            </button>
+          ))}
+        </div>
       </div>
+
+      <div id="seller-section-panel" className="scroll-mt-4" />
 
       {/* TAB 1: MY LISTINGS */}
       {activeTab === 'listings' && (

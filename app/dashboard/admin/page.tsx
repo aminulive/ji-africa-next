@@ -704,162 +704,188 @@ export default function AdminDashboardPage() {
         </div>
       </div>
 
-      {/* KPI Strip */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-          <p className="text-[11px] font-bold text-gray-400 uppercase">Total Users</p>
-          <p className="text-2xl font-black text-gray-900 mt-1">{stats.totalUsers}</p>
-        </div>
-        <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-          <p className="text-[11px] font-bold text-gray-400 uppercase">Verified Sellers</p>
-          <p className="text-2xl font-black text-blue-600 mt-1">{stats.verifiedSellers}</p>
-        </div>
-        <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-          <p className="text-[11px] font-bold text-gray-400 uppercase">Total Listings</p>
-          <p className="text-2xl font-black text-gray-900 mt-1">{stats.totalAds}</p>
-        </div>
-        <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-          <p className="text-[11px] font-bold text-gray-400 uppercase">Flagged / Reports</p>
-          <p className="text-2xl font-black text-red-600 mt-1">
-            {stats.flaggedAds + stats.openReports}
+      {/* Unified Clickable Metric & Section Tiles */}
+      <div className="bg-white p-3 sm:p-4 rounded-2xl border border-gray-200 shadow-sm space-y-2.5">
+        <div className="flex items-center justify-between px-1">
+          <p className="text-[11px] font-black uppercase tracking-wider text-gray-500">
+            Command Overview — Tap any card to view items
           </p>
+          <span className="text-[11px] font-bold text-gray-400">11 Sections</span>
         </div>
-        <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-          <p className="text-[11px] font-bold text-gray-400 uppercase">Categories</p>
-          <p className="text-2xl font-black text-brand-orange mt-1">{categories.length}</p>
-        </div>
-        <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-          <p className="text-[11px] font-bold text-gray-400 uppercase">Unread Inbox</p>
-          <p className="text-2xl font-black text-emerald-600 mt-1">{stats.unreadMessages}</p>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+          {[
+            {
+              key: 'moderation' as const,
+              label: 'Ad Moderation',
+              value: stats.totalAds || ads.length,
+              sub:
+                stats.flaggedAds + stats.openReports > 0
+                  ? `${stats.flaggedAds + stats.openReports} flagged / reports`
+                  : 'All listings clean',
+              subAlert: stats.flaggedAds + stats.openReports > 0,
+              valueColor: 'text-gray-900',
+              activeBg: 'bg-gray-900 text-white border-gray-900',
+              icon: <Package className="w-4 h-4" />,
+            },
+            {
+              key: 'users' as const,
+              label: 'Users & KYC',
+              value: stats.totalUsers || users.length,
+              sub: `${stats.verifiedSellers} verified sellers`,
+              subAlert: false,
+              valueColor: 'text-blue-600',
+              activeBg: 'bg-gray-900 text-white border-gray-900',
+              icon: <Users className="w-4 h-4" />,
+            },
+            {
+              key: 'trust' as const,
+              label: 'JI Trust Escrow',
+              value: trustOrders.length,
+              sub: 'Escrow orders',
+              subAlert: false,
+              valueColor: 'text-emerald-600',
+              activeBg: 'bg-emerald-700 text-white border-emerald-700',
+              icon: <ShieldCheck className="w-4 h-4" />,
+            },
+            {
+              key: 'requests' as const,
+              label: 'Buyer Requests',
+              value: adminBuyerRequests.length,
+              sub: 'Active buyer leads',
+              subAlert: false,
+              valueColor: 'text-brand-orange',
+              activeBg: 'bg-brand-orange text-white border-brand-orange',
+              icon: <Megaphone className="w-4 h-4" />,
+            },
+            {
+              key: 'chat-quotes' as const,
+              label: 'Chat Quotes',
+              value: adminChatQuotes.length,
+              sub: '3-way quote audit',
+              subAlert: false,
+              valueColor: 'text-gray-900',
+              activeBg: 'bg-gray-900 text-white border-gray-900',
+              icon: <ShieldCheck className="w-4 h-4" />,
+            },
+            {
+              key: 'messages' as const,
+              label: 'Contact Inbox',
+              value: stats.unreadMessages,
+              sub: 'Unread messages',
+              subAlert: stats.unreadMessages > 0,
+              valueColor: 'text-emerald-600',
+              activeBg: 'bg-gray-900 text-white border-gray-900',
+              icon: <Mail className="w-4 h-4" />,
+            },
+            {
+              key: 'categories' as const,
+              label: 'Categories',
+              value: categories.length,
+              sub: '4-level taxonomy',
+              subAlert: false,
+              valueColor: 'text-brand-orange',
+              activeBg: 'bg-gray-900 text-white border-gray-900',
+              icon: <FolderTree className="w-4 h-4" />,
+            },
+            {
+              key: 'newsletter' as const,
+              label: 'Newsletter',
+              value: newsletterData.stats.totalActive,
+              sub: 'Active subscribers',
+              subAlert: false,
+              valueColor: 'text-gray-900',
+              activeBg: 'bg-gray-900 text-white border-gray-900',
+              icon: <Send className="w-4 h-4" />,
+            },
+            {
+              key: 'reviews' as const,
+              label: 'Reviews',
+              value: adminReviews.length,
+              sub: 'Seller feedback',
+              subAlert: false,
+              valueColor: 'text-gray-900',
+              activeBg: 'bg-gray-900 text-white border-gray-900',
+              icon: <BadgeCheck className="w-4 h-4" />,
+            },
+            {
+              key: 'blog' as const,
+              label: 'Blog CMS',
+              value: posts.length,
+              sub: 'SEO articles',
+              subAlert: false,
+              valueColor: 'text-gray-900',
+              activeBg: 'bg-gray-900 text-white border-gray-900',
+              icon: <FileText className="w-4 h-4" />,
+            },
+            {
+              key: 'intelligence' as const,
+              label: 'Market Intel',
+              value: 'Live',
+              sub: 'Demand & searches',
+              subAlert: false,
+              valueColor: 'text-brand-orange',
+              activeBg: 'bg-gray-900 text-white border-gray-900',
+              icon: <Sparkles className="w-4 h-4" />,
+            },
+          ].map((tile) => {
+            const isActive = activeTab === tile.key;
+            return (
+              <button
+                key={tile.key}
+                type="button"
+                onClick={() => {
+                  setActiveTab(tile.key);
+                  if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+                    document
+                      .getElementById('admin-section-panel')
+                      ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }
+                }}
+                className={`text-left p-3.5 rounded-xl border transition-all flex flex-col justify-between shadow-2xs ${
+                  isActive
+                    ? `${tile.activeBg} shadow-md ring-2 ring-offset-1 ring-gray-900/20`
+                    : 'bg-gray-50/70 hover:bg-white border-gray-200 hover:border-brand-orange text-gray-900'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-1.5">
+                  <span
+                    className={`text-[10px] font-extrabold uppercase tracking-wide truncate ${
+                      isActive ? 'text-white/85' : 'text-gray-500'
+                    }`}
+                  >
+                    {tile.label}
+                  </span>
+                  <span className={isActive ? 'text-white' : 'text-gray-400'}>
+                    {tile.icon}
+                  </span>
+                </div>
+                <p
+                  className={`text-2xl font-black mt-1.5 leading-none ${
+                    isActive ? 'text-white' : tile.valueColor
+                  }`}
+                >
+                  {tile.value}
+                </p>
+                <p
+                  className={`text-[10px] font-bold mt-1.5 truncate ${
+                    isActive
+                      ? 'text-white/80'
+                      : tile.subAlert
+                      ? 'text-red-600'
+                      : 'text-gray-400'
+                  }`}
+                >
+                  {tile.sub}
+                </p>
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {/* Navigation Tabs */}
-      <div className="flex flex-wrap gap-2 bg-white p-2 rounded-xl border border-gray-200 shadow-sm">
-        <button
-          type="button"
-          onClick={() => setActiveTab('moderation')}
-          className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 transition ${
-            activeTab === 'moderation'
-              ? 'bg-gray-900 text-white'
-              : 'text-gray-600 hover:bg-gray-100'
-          }`}
-        >
-          <Package className="w-4 h-4" /> Ad Moderation ({ads.length})
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('users')}
-          className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 transition ${
-            activeTab === 'users'
-              ? 'bg-gray-900 text-white'
-              : 'text-gray-600 hover:bg-gray-100'
-          }`}
-        >
-          <Users className="w-4 h-4" /> Users &amp; KYC ({users.length})
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('requests')}
-          className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 transition ${
-            activeTab === 'requests'
-              ? 'bg-brand-orange text-white'
-              : 'text-orange-900 bg-orange-50 hover:bg-orange-100'
-          }`}
-        >
-          <Megaphone className="w-4 h-4" /> Buyer Requests ({adminBuyerRequests.length})
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('chat-quotes')}
-          className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 transition ${
-            activeTab === 'chat-quotes'
-              ? 'bg-gray-900 text-white'
-              : 'text-gray-700 hover:bg-gray-100'
-          }`}
-        >
-          <ShieldCheck className="w-4 h-4 text-brand-orange" /> Chat Quotes &amp; Audit ({adminChatQuotes.length})
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('intelligence')}
-          className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 transition ${
-            activeTab === 'intelligence'
-              ? 'bg-gray-900 text-white'
-              : 'text-gray-700 hover:bg-gray-100'
-          }`}
-        >
-          <Sparkles className="w-4 h-4 text-brand-orange" /> Market Intelligence
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('newsletter')}
-          className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 transition ${
-            activeTab === 'newsletter'
-              ? 'bg-gray-900 text-white'
-              : 'text-gray-700 hover:bg-gray-100'
-          }`}
-        >
-          <Mail className="w-4 h-4 text-brand-orange" /> Newsletter ({newsletterData.stats.totalActive})
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('reviews')}
-          className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 transition ${
-            activeTab === 'reviews'
-              ? 'bg-gray-900 text-white'
-              : 'text-gray-600 hover:bg-gray-100'
-          }`}
-        >
-          <ShieldCheck className="w-4 h-4" /> Reviews ({adminReviews.length})
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('trust')}
-          className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 transition ${
-            activeTab === 'trust'
-              ? 'bg-emerald-700 text-white'
-              : 'text-emerald-800 bg-emerald-50 hover:bg-emerald-100'
-          }`}
-        >
-          <ShieldCheck className="w-4 h-4" /> JI Trust ({trustOrders.length})
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('categories')}
-          className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 transition ${
-            activeTab === 'categories'
-              ? 'bg-gray-900 text-white'
-              : 'text-gray-600 hover:bg-gray-100'
-          }`}
-        >
-          <FolderTree className="w-4 h-4" /> Categories ({categories.length})
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('blog')}
-          className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 transition ${
-            activeTab === 'blog'
-              ? 'bg-gray-900 text-white'
-              : 'text-gray-600 hover:bg-gray-100'
-          }`}
-        >
-          <FileText className="w-4 h-4" /> Blog CMS ({posts.length})
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('messages')}
-          className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 transition ${
-            activeTab === 'messages'
-              ? 'bg-gray-900 text-white'
-              : 'text-gray-600 hover:bg-gray-100'
-          }`}
-        >
-          <Mail className="w-4 h-4" /> Contact Inbox ({messages.length})
-        </button>
-      </div>
+      <div id="admin-section-panel" className="scroll-mt-4" />
 
-      {/* TAB 1: AD MODERATION & REPORTS */}
       {activeTab === 'moderation' && (
         <div className="space-y-6">
           {reports.filter((r) => r.status === 'open').length > 0 && (
