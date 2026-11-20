@@ -13,6 +13,8 @@ import {
   KeyRound,
   MailCheck,
   RefreshCw,
+  ShoppingBag,
+  Store,
 } from 'lucide-react';
 import { GoogleLogin } from '@react-oauth/google';
 
@@ -21,6 +23,7 @@ const API_URL = 'https://ji-africa-backend.onrender.com/api';
 export default function LoginPage() {
   const router = useRouter();
   const [mode, setMode] = useState<'login' | 'register' | 'forgot' | 'verify'>('login');
+  const [accountType, setAccountType] = useState<'buyer' | 'seller'>('buyer');
   const [loading, setLoading] = useState(false);
   const submittingRef = useRef(false);
   const [resendingCode, setResendingCode] = useState(false);
@@ -85,6 +88,9 @@ export default function LoginPage() {
     const params = new URLSearchParams(window.location.search);
     if (params.get('mode') === 'register') {
       setMode('register');
+    }
+    if (params.get('role') === 'seller' || params.get('redirect') === '/sell') {
+      setAccountType('seller');
     }
     const urlRef = (params.get('ref') || '').trim();
     if (urlRef) {
@@ -301,7 +307,8 @@ export default function LoginPage() {
           setLoading(false);
           return;
         }
-        if (jiTrustEnrolled) {
+        const isSellerSignup = accountType === 'seller';
+        if (isSellerSignup && jiTrustEnrolled) {
           if (!jiTrustTermsAccepted) {
             setError('Please read and accept the JI Trust Seller Terms & Conditions.');
             window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -317,13 +324,14 @@ export default function LoginPage() {
         }
 
         let res: Response;
-        if (profileImage) {
+        if (isSellerSignup && profileImage) {
           const formData = new FormData();
           formData.append('full_name', fullName.trim());
           if (username.trim()) formData.append('username', username.trim().toLowerCase());
           formData.append('email', email.trim());
           formData.append('phone', phone.trim());
           formData.append('password', password);
+          formData.append('account_type', 'seller');
           formData.append('accepted_terms', 'true');
           if (referralCode.trim()) formData.append('referral_code', referralCode.trim());
           formData.append('newsletter_subscribed', newsletterSubscribed ? 'true' : 'false');
@@ -350,30 +358,42 @@ export default function LoginPage() {
             body: formData,
           });
         } else {
-          const jsonPayload: Record<string, any> = {
-            full_name: fullName.trim(),
-            username: username.trim() ? username.trim().toLowerCase() : undefined,
-            email: email.trim(),
-            phone: phone.trim(),
-            password,
-            accepted_terms: true,
-            referral_code: referralCode.trim() || undefined,
-            newsletter_subscribed: newsletterSubscribed,
-            ji_trust_enrolled: jiTrustEnrolled,
-            ji_trust_terms_accepted: jiTrustEnrolled ? jiTrustTermsAccepted : false,
-            payout_bank_name: jiTrustEnrolled ? payoutBankName.trim() : undefined,
-            payout_account_number: jiTrustEnrolled ? payoutAccountNumber.trim() : undefined,
-            payout_account_name: jiTrustEnrolled ? payoutAccountName.trim() : undefined,
-            shop_name: shopName.trim() || undefined,
-            shop_address: shopAddress.trim() || undefined,
-            shop_description: shopDescription.trim() || undefined,
-            facebook: socials.facebook.trim() || undefined,
-            twitter: socials.twitter.trim() || undefined,
-            instagram: socials.instagram.trim() || undefined,
-            tiktok: socials.tiktok.trim() || undefined,
-            youtube: socials.youtube.trim() || undefined,
-            whatsapp_link: socials.whatsapp.trim() || undefined,
-          };
+          const jsonPayload: Record<string, any> = isSellerSignup
+            ? {
+                account_type: 'seller',
+                full_name: fullName.trim(),
+                username: username.trim() ? username.trim().toLowerCase() : undefined,
+                email: email.trim(),
+                phone: phone.trim(),
+                password,
+                accepted_terms: true,
+                referral_code: referralCode.trim() || undefined,
+                newsletter_subscribed: newsletterSubscribed,
+                ji_trust_enrolled: jiTrustEnrolled,
+                ji_trust_terms_accepted: jiTrustEnrolled ? jiTrustTermsAccepted : false,
+                payout_bank_name: jiTrustEnrolled ? payoutBankName.trim() : undefined,
+                payout_account_number: jiTrustEnrolled ? payoutAccountNumber.trim() : undefined,
+                payout_account_name: jiTrustEnrolled ? payoutAccountName.trim() : undefined,
+                shop_name: shopName.trim() || undefined,
+                shop_address: shopAddress.trim() || undefined,
+                shop_description: shopDescription.trim() || undefined,
+                facebook: socials.facebook.trim() || undefined,
+                twitter: socials.twitter.trim() || undefined,
+                instagram: socials.instagram.trim() || undefined,
+                tiktok: socials.tiktok.trim() || undefined,
+                youtube: socials.youtube.trim() || undefined,
+                whatsapp_link: socials.whatsapp.trim() || undefined,
+              }
+            : {
+                account_type: 'buyer',
+                full_name: fullName.trim(),
+                email: email.trim(),
+                phone: phone.trim(),
+                password,
+                accepted_terms: true,
+                referral_code: referralCode.trim() || undefined,
+                newsletter_subscribed: newsletterSubscribed,
+              };
 
           res = await fetchWithWakeRetry(`${API_URL}/auth/register`, {
             method: 'POST',
@@ -392,7 +412,9 @@ export default function LoginPage() {
           setOtpCode('');
           setResendCooldown(30);
           setSuccessMsg(
-            `Account created! We sent a 6-digit verification code to ${email}. Enter it below or continue to your shop.`
+            accountType === 'seller'
+              ? `Seller account created! We sent a 6-digit verification code to ${email}. Enter it below to verify your email.`
+              : `Account created! We sent a 6-digit verification code to ${email}. Enter it below to verify your email.`
           );
           if (typeof window !== 'undefined') {
             sessionStorage.setItem('ji_pending_verify_email', email.trim().toLowerCase());
@@ -602,20 +624,117 @@ export default function LoginPage() {
           </form>
         )}
 
-        {/* --- MODE 2: CREATE ACCOUNT --- */}
+        {/* --- MODE 2: CREATE ACCOUNT (SPLIT USER VS SELLER) --- */}
         {mode === 'register' && (
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Step 1: Account Type Chooser */}
             <div>
-              <label className="block text-xs font-bold text-gray-700 mb-1.5">
-                Profile Photo (Optional)
-              </label>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={(e) => setProfileImage(e.target.files?.[0] || null)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white cursor-pointer file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-orange-50 file:text-brand-orange hover:file:bg-orange-100"
-              />
+              <p className="text-[11px] font-extrabold uppercase tracking-wider text-gray-500 mb-2">
+                I want to register as:
+              </p>
+              <div className="grid grid-cols-2 gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAccountType('buyer');
+                    setError('');
+                  }}
+                  className={`p-3 rounded-xl border text-left transition flex flex-col gap-1 ${
+                    accountType === 'buyer'
+                      ? 'border-brand-orange bg-orange-50/80 ring-1 ring-brand-orange'
+                      : 'border-gray-200 bg-gray-50/60 hover:border-gray-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <ShoppingBag
+                      className={`w-4 h-4 ${
+                        accountType === 'buyer' ? 'text-brand-orange' : 'text-gray-500'
+                      }`}
+                    />
+                    <span
+                      className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${
+                        accountType === 'buyer' ? 'border-brand-orange' : 'border-gray-300'
+                      }`}
+                    >
+                      {accountType === 'buyer' && (
+                        <span className="w-2 h-2 rounded-full bg-brand-orange" />
+                      )}
+                    </span>
+                  </div>
+                  <span
+                    className={`text-xs font-black ${
+                      accountType === 'buyer' ? 'text-gray-900' : 'text-gray-700'
+                    }`}
+                  >
+                    Regular User
+                  </span>
+                  <span className="text-[10px] text-gray-500 leading-tight">
+                    Quick signup to browse, message &amp; buy
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAccountType('seller');
+                    setError('');
+                  }}
+                  className={`p-3 rounded-xl border text-left transition flex flex-col gap-1 ${
+                    accountType === 'seller'
+                      ? 'border-brand-orange bg-orange-50/80 ring-1 ring-brand-orange'
+                      : 'border-gray-200 bg-gray-50/60 hover:border-gray-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <Store
+                      className={`w-4 h-4 ${
+                        accountType === 'seller' ? 'text-brand-orange' : 'text-gray-500'
+                      }`}
+                    />
+                    <span
+                      className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${
+                        accountType === 'seller' ? 'border-brand-orange' : 'border-gray-300'
+                      }`}
+                    >
+                      {accountType === 'seller' && (
+                        <span className="w-2 h-2 rounded-full bg-brand-orange" />
+                      )}
+                    </span>
+                  </div>
+                  <span
+                    className={`text-xs font-black ${
+                      accountType === 'seller' ? 'text-gray-900' : 'text-gray-700'
+                    }`}
+                  >
+                    Seller / Shop
+                  </span>
+                  <span className="text-[10px] text-gray-500 leading-tight">
+                    Open a shop, post ads &amp; use JI Trust
+                  </span>
+                </button>
+              </div>
             </div>
+
+            {accountType === 'buyer' && (
+              <p className="text-[11px] text-gray-500 bg-gray-50 border border-gray-200/80 rounded-lg px-3 py-2">
+                Takes 15 seconds. You can add a profile photo, location, or open a shop later in your{" "}
+                <strong className="text-gray-700">Profile Settings</strong>.
+              </p>
+            )}
+
+            {accountType === 'seller' && (
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1.5">
+                  Profile Photo (Optional)
+                </label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setProfileImage(e.target.files?.[0] || null)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white cursor-pointer file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-orange-50 file:text-brand-orange hover:file:bg-orange-100"
+                />
+              </div>
+            )}
 
             <input
               type="text"
@@ -626,28 +745,32 @@ export default function LoginPage() {
               className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition"
             />
 
-            <div>
-              <input
-                type="text"
-                placeholder="Shop Username (e.g. aminulive)"
-                value={username}
-                onChange={(e) =>
-                  setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))
-                }
-                className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition"
-              />
-              <p className="text-[11px] text-gray-400 mt-1">
-                Your custom shop link: <span className="font-semibold text-gray-600">ji.africa/shop/{username || 'yourname'}</span>
-              </p>
-            </div>
+            {accountType === 'seller' && (
+              <>
+                <div>
+                  <input
+                    type="text"
+                    placeholder="Shop Username (e.g. aminulive)"
+                    value={username}
+                    onChange={(e) =>
+                      setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))
+                    }
+                    className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition"
+                  />
+                  <p className="text-[11px] text-gray-400 mt-1">
+                    Your custom shop link: <span className="font-semibold text-gray-600">ji.africa/shop/{username || 'yourname'}</span>
+                  </p>
+                </div>
 
-            <input
-              type="text"
-              placeholder="Shop Name / Brand Name (Optional)"
-              value={shopName}
-              onChange={(e) => setShopName(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition"
-            />
+                <input
+                  type="text"
+                  placeholder="Shop Name / Brand Name (Optional)"
+                  value={shopName}
+                  onChange={(e) => setShopName(e.target.value)}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition"
+                />
+              </>
+            )}
 
             <input
               type="tel"
@@ -667,23 +790,27 @@ export default function LoginPage() {
               className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition"
             />
 
-            <input
-              type="text"
-              placeholder="Shop Address / Location (e.g. Wuse 2, Abuja)"
-              value={shopAddress}
-              onChange={(e) => setShopAddress(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition"
-            />
+            {accountType === 'seller' && (
+              <>
+                <input
+                  type="text"
+                  placeholder="Shop Address / Location (e.g. Wuse 2, Abuja)"
+                  value={shopAddress}
+                  onChange={(e) => setShopAddress(e.target.value)}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition"
+                />
 
-            <textarea
-              placeholder="Short description of your shop/business..."
-              rows={2}
-              value={shopDescription}
-              onChange={(e) => setShopDescription(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition"
-            />
+                <textarea
+                  placeholder="Short description of your shop/business..."
+                  rows={2}
+                  value={shopDescription}
+                  onChange={(e) => setShopDescription(e.target.value)}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition"
+                />
+              </>
+            )}
 
-            {/* Dual Password Confirmation Fields */}
+            {/* Dual Password Confirmation Fields (Shown for Both Regular Users & Sellers) */}
             <div className="space-y-2.5">
               <input
                 type="password"
@@ -730,130 +857,134 @@ export default function LoginPage() {
               )}
             </div>
 
-            <div className="pt-3 border-t border-gray-100">
-              <p className="text-xs font-bold text-gray-800 mb-3">
-                Add Social Media Handles (Optional)
-              </p>
-              <div className="grid grid-cols-2 gap-3">
-                <input
-                  type="text"
-                  placeholder="Facebook URL"
-                  value={socials.facebook}
-                  onChange={(e) => setSocials({ ...socials, facebook: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition"
-                />
-                <input
-                  type="text"
-                  placeholder="X (Twitter) URL"
-                  value={socials.twitter}
-                  onChange={(e) => setSocials({ ...socials, twitter: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition"
-                />
-                <input
-                  type="text"
-                  placeholder="Instagram URL"
-                  value={socials.instagram}
-                  onChange={(e) => setSocials({ ...socials, instagram: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition"
-                />
-                <input
-                  type="text"
-                  placeholder="TikTok URL"
-                  value={socials.tiktok}
-                  onChange={(e) => setSocials({ ...socials, tiktok: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition"
-                />
-                <input
-                  type="text"
-                  placeholder="YouTube Channel URL"
-                  value={socials.youtube}
-                  onChange={(e) => setSocials({ ...socials, youtube: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition"
-                />
-                <input
-                  type="text"
-                  placeholder="WhatsApp Link (wa.me/)"
-                  value={socials.whatsapp}
-                  onChange={(e) => setSocials({ ...socials, whatsapp: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition"
-                />
-              </div>
-            </div>
-
-            {/* Optional Seller Enrollment in JI Trust Escrow Protection */}
-            <div className="pt-3 border-t border-gray-100">
-              <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-3.5 space-y-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-black text-emerald-950 flex items-center gap-1.5">
-                      🛡️ Join JI Trust Escrow Protection (For Sellers)
-                    </p>
-                    <p className="text-[11px] text-emerald-800 mt-0.5 leading-relaxed">
-                      Receive secure escrow payments from buyers across Nigeria. Funds are held by ji.africa and disbursed to your bank after buyer confirmation or 72h inspection (3% fee on completed sales).
-                    </p>
+            {accountType === 'seller' && (
+              <>
+                <div className="pt-3 border-t border-gray-100">
+                  <p className="text-xs font-bold text-gray-800 mb-3">
+                    Add Social Media Handles (Optional)
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <input
+                      type="text"
+                      placeholder="Facebook URL"
+                      value={socials.facebook}
+                      onChange={(e) => setSocials({ ...socials, facebook: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition"
+                    />
+                    <input
+                      type="text"
+                      placeholder="X (Twitter) URL"
+                      value={socials.twitter}
+                      onChange={(e) => setSocials({ ...socials, twitter: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Instagram URL"
+                      value={socials.instagram}
+                      onChange={(e) => setSocials({ ...socials, instagram: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition"
+                    />
+                    <input
+                      type="text"
+                      placeholder="TikTok URL"
+                      value={socials.tiktok}
+                      onChange={(e) => setSocials({ ...socials, tiktok: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition"
+                    />
+                    <input
+                      type="text"
+                      placeholder="YouTube Channel URL"
+                      value={socials.youtube}
+                      onChange={(e) => setSocials({ ...socials, youtube: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition"
+                    />
+                    <input
+                      type="text"
+                      placeholder="WhatsApp Link (wa.me/)"
+                      value={socials.whatsapp}
+                      onChange={(e) => setSocials({ ...socials, whatsapp: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition"
+                    />
                   </div>
-                  <input
-                    id="enroll-ji-trust"
-                    type="checkbox"
-                    checked={jiTrustEnrolled}
-                    onChange={(e) => setJiTrustEnrolled(e.target.checked)}
-                    className="mt-1 w-4 h-4 accent-emerald-600 cursor-pointer shrink-0"
-                  />
                 </div>
 
-                {jiTrustEnrolled && (
-                  <div className="space-y-2.5 pt-2 border-t border-emerald-200/80">
-                    <p className="text-[11px] font-bold text-emerald-900 uppercase">
-                      Seller Settlement Bank Account Details
-                    </p>
-                    <input
-                      type="text"
-                      placeholder="Bank Name (e.g. GTBank, Zenith, Access, OPay) *"
-                      value={payoutBankName}
-                      onChange={(e) => setPayoutBankName(e.target.value)}
-                      className="w-full px-3 py-2 border border-emerald-200 rounded-lg text-xs bg-white focus:outline-none focus:border-emerald-600"
-                    />
-                    <input
-                      type="text"
-                      maxLength={10}
-                      placeholder="10-Digit Account Number *"
-                      value={payoutAccountNumber}
-                      onChange={(e) => setPayoutAccountNumber(e.target.value.replace(/\D/g, ''))}
-                      className="w-full px-3 py-2 border border-emerald-200 rounded-lg text-xs bg-white focus:outline-none focus:border-emerald-600"
-                    />
-                    <input
-                      type="text"
-                      placeholder="Account Holder Full Name *"
-                      value={payoutAccountName}
-                      onChange={(e) => setPayoutAccountName(e.target.value)}
-                      className="w-full px-3 py-2 border border-emerald-200 rounded-lg text-xs bg-white focus:outline-none focus:border-emerald-600"
-                    />
-
-                    <div className="flex items-start gap-2 pt-1">
-                      <input
-                        id="accept-ji-trust-terms"
-                        type="checkbox"
-                        checked={jiTrustTermsAccepted}
-                        onChange={(e) => setJiTrustTermsAccepted(e.target.checked)}
-                        className="mt-0.5 w-4 h-4 accent-emerald-600 cursor-pointer shrink-0"
-                      />
-                      <div className="text-[11px] text-emerald-950 leading-relaxed">
-                        <label htmlFor="accept-ji-trust-terms" className="cursor-pointer">
-                          I have read and agree to the <strong>JI Trust Escrow Seller Terms &amp; Conditions</strong> (3% escrow fee &amp; 72-hour buyer inspection policy).
-                        </label>
-                        <button
-                          type="button"
-                          onClick={() => setShowJiTrustModal(true)}
-                          className="ml-1.5 inline-flex items-center text-[10px] font-black text-emerald-800 bg-white border border-emerald-300 px-2 py-0.5 rounded hover:bg-emerald-100 transition"
-                        >
-                          Read JI Trust Terms
-                        </button>
+                {/* Optional Seller Enrollment in JI Trust Escrow Protection */}
+                <div className="pt-3 border-t border-gray-100">
+                  <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-3.5 space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-black text-emerald-950 flex items-center gap-1.5">
+                          🛡️ Join JI Trust Escrow Protection (For Sellers)
+                        </p>
+                        <p className="text-[11px] text-emerald-800 mt-0.5 leading-relaxed">
+                          Receive secure escrow payments from buyers across Nigeria. Funds are held by ji.africa and disbursed to your bank after buyer confirmation or 72h inspection (3% fee on completed sales).
+                        </p>
                       </div>
+                      <input
+                        id="enroll-ji-trust"
+                        type="checkbox"
+                        checked={jiTrustEnrolled}
+                        onChange={(e) => setJiTrustEnrolled(e.target.checked)}
+                        className="mt-1 w-4 h-4 accent-emerald-600 cursor-pointer shrink-0"
+                      />
                     </div>
+
+                    {jiTrustEnrolled && (
+                      <div className="space-y-2.5 pt-2 border-t border-emerald-200/80">
+                        <p className="text-[11px] font-bold text-emerald-900 uppercase">
+                          Seller Settlement Bank Account Details
+                        </p>
+                        <input
+                          type="text"
+                          placeholder="Bank Name (e.g. GTBank, Zenith, Access, OPay) *"
+                          value={payoutBankName}
+                          onChange={(e) => setPayoutBankName(e.target.value)}
+                          className="w-full px-3 py-2 border border-emerald-200 rounded-lg text-xs bg-white focus:outline-none focus:border-emerald-600"
+                        />
+                        <input
+                          type="text"
+                          maxLength={10}
+                          placeholder="10-Digit Account Number *"
+                          value={payoutAccountNumber}
+                          onChange={(e) => setPayoutAccountNumber(e.target.value.replace(/\D/g, ''))}
+                          className="w-full px-3 py-2 border border-emerald-200 rounded-lg text-xs bg-white focus:outline-none focus:border-emerald-600"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Account Holder Full Name *"
+                          value={payoutAccountName}
+                          onChange={(e) => setPayoutAccountName(e.target.value)}
+                          className="w-full px-3 py-2 border border-emerald-200 rounded-lg text-xs bg-white focus:outline-none focus:border-emerald-600"
+                        />
+
+                        <div className="flex items-start gap-2 pt-1">
+                          <input
+                            id="accept-ji-trust-terms"
+                            type="checkbox"
+                            checked={jiTrustTermsAccepted}
+                            onChange={(e) => setJiTrustTermsAccepted(e.target.checked)}
+                            className="mt-0.5 w-4 h-4 accent-emerald-600 cursor-pointer shrink-0"
+                          />
+                          <div className="text-[11px] text-emerald-950 leading-relaxed">
+                            <label htmlFor="accept-ji-trust-terms" className="cursor-pointer">
+                              I have read and agree to the <strong>JI Trust Escrow Seller Terms &amp; Conditions</strong> (3% escrow fee &amp; 72-hour buyer inspection policy).
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => setShowJiTrustModal(true)}
+                              className="ml-1.5 inline-flex items-center text-[10px] font-black text-emerald-800 bg-white border border-emerald-300 px-2 py-0.5 rounded hover:bg-emerald-100 transition"
+                            >
+                              Read JI Trust Terms
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            </div>
+                </div>
+              </>
+            )}
 
             <div className="pt-3 border-t border-gray-100 space-y-3">
               <div className="flex items-start gap-2.5 bg-orange-50/70 p-3 rounded-xl border border-orange-100">
@@ -902,7 +1033,13 @@ export default function LoginPage() {
               disabled={loading || (confirmPassword.length > 0 && !passwordsMatch)}
               className="w-full mt-2 flex justify-center items-center py-3.5 bg-brand-orange hover:bg-orange-700 text-white font-bold rounded-lg shadow-sm transition disabled:opacity-70"
             >
-              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Create Account'}
+              {loading ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : accountType === 'seller' ? (
+                'Create Seller Account'
+              ) : (
+                'Create Account'
+              )}
             </button>
           </form>
         )}
