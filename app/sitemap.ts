@@ -1,4 +1,5 @@
 import { getAdUrl } from './lib/adUrl';
+import { extractCategoryTree, getCategoryPath } from './lib/categoryUrl';
 import type { MetadataRoute } from 'next';
 
 const SITE_URL = 'https://www.ji.africa';
@@ -47,5 +48,31 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }
   } catch {}
 
-  return [...staticRoutes, ...blogRoutes, ...adRoutes];
+  let categoryRoutes: MetadataRoute.Sitemap = [];
+  try {
+    const res = await fetch(`${API_URL}/categories`, { next: { revalidate: 3600 } });
+    if (res.ok) {
+      const cats = await res.json();
+      if (Array.isArray(cats)) {
+        for (const cat of cats) {
+          categoryRoutes.push({
+            url: `${SITE_URL}${getCategoryPath(cat)}`,
+            lastModified: new Date(),
+            changeFrequency: 'daily',
+            priority: 0.88,
+          });
+          for (const sub of extractCategoryTree(cat)) {
+            categoryRoutes.push({
+              url: `${SITE_URL}${getCategoryPath(cat, sub.name)}`,
+              lastModified: new Date(),
+              changeFrequency: 'daily',
+              priority: 0.82,
+            });
+          }
+        }
+      }
+    }
+  } catch {}
+
+  return [...staticRoutes, ...categoryRoutes, ...blogRoutes, ...adRoutes];
 }

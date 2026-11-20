@@ -20,6 +20,8 @@ import {
 } from 'lucide-react';
 import { useEffect, useState, useRef, useCallback, Suspense } from 'react';
 import LocationModal from './LocationModal';
+import { getCategoryPath } from '../lib/categoryUrl';
+import { getCategoryVisualMeta } from '../lib/categoryThumbs';
 
 const API_URL = 'https://ji-africa-backend.onrender.com/api';
 
@@ -35,6 +37,11 @@ function NavbarContent() {
     searchParams.get('location') || 'All Nigeria'
   );
   const [showLocationModal, setShowLocationModal] = useState(false);
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const searchBoxRef = useRef<HTMLDivElement>(null);
+  const suggestAbortRef = useRef<AbortController | null>(null);
 
   // Saved Wishlist Badge State
   const [wishlistCount, setWishlistCount] = useState(0);
@@ -57,6 +64,9 @@ function NavbarContent() {
       }
       if (notifMenuRef.current && !notifMenuRef.current.contains(e.target as Node)) {
         setNotifOpen(false);
+      }
+      if (searchBoxRef.current && !searchBoxRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false);
       }
     };
     document.addEventListener('mousedown', handleOutsideClick);
@@ -280,21 +290,66 @@ function NavbarContent() {
     [router, searchParams]
   );
 
-  // Instant Live Search-As-You-Type (250ms debounce on Marketplace homepage)
+  // Predictive Jiji-Style Search Dropdown (fetches '<term> in <Category>' options as you type)
   useEffect(() => {
-    if (pathname !== '/') return;
-    const currentUrlSearch = searchParams.get('search') || '';
-    if (searchQuery.trim() === currentUrlSearch) return;
-
-    const timer = setTimeout(() => {
-      applyFilterNavigation({ search: searchQuery }, true);
-    }, 250);
+    const q = searchQuery.trim();
+    if (!q) {
+      setSuggestions([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      if (suggestAbortRef.current) suggestAbortRef.current.abort();
+      const ctrl = new AbortController();
+      suggestAbortRef.current = ctrl;
+      setLoadingSuggestions(true);
+      try {
+        const res = await fetch(
+          `${API_URL}/ads/suggest?q=${encodeURIComponent(q)}`,
+          { signal: ctrl.signal }
+        );
+        if (res.ok) {
+          const data = await res.json();
+          setSuggestions(Array.isArray(data.suggestions) ? data.suggestions : []);
+        }
+      } catch (err: any) {
+        if (err?.name !== 'AbortError') setSuggestions([]);
+      } finally {
+        setLoadingSuggestions(false);
+      }
+    }, 180);
 
     return () => clearTimeout(timer);
-  }, [searchQuery, pathname, searchParams, applyFilterNavigation]);
+  }, [searchQuery]);
+
+  const handleSelectSuggestion = (item: any) => {
+    setShowSuggestions(false);
+    setSearchQuery(item.query || searchQuery);
+    if (item.categoryName) {
+      const dest = getCategoryPath(
+        { id: item.categoryId, name: item.categoryName },
+        item.subcategory || undefined,
+        {
+          search: item.query,
+          location: locationLabel !== 'All Nigeria' ? locationLabel : undefined,
+        }
+      );
+      router.push(dest);
+      return;
+    }
+    applyFilterNavigation({ search: item.query || searchQuery }, false);
+  };
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setShowSuggestions(false);
+    if (pathname?.startsWith('/category/')) {
+      const params = new URLSearchParams(searchParams.toString());
+      if (searchQuery.trim()) params.set('search', searchQuery.trim());
+      else params.delete('search');
+      const qs = params.toString();
+      router.push(qs ? `${pathname}?${qs}` : pathname);
+      return;
+    }
     applyFilterNavigation({ search: searchQuery }, false);
   };
 
@@ -334,35 +389,101 @@ function NavbarContent() {
                 <span className="truncate">{locationLabel}</span>
               </button>
 
-              <form onSubmit={handleSearchSubmit} className="flex-1 relative">
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Type to search ads instantly..."
-                  className="w-full pl-10 pr-28 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-brand-orange transition"
-                />
-                <Search className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
-                {searchQuery && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSearchQuery('');
-                      applyFilterNavigation({ search: '' }, true);
+              <div ref={searchBoxRef} className="flex-1 relative">
+                <form onSubmit={handleSearchSubmit} className="relative">
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onFocus={() => {
+                      if (searchQuery.trim()) setShowSuggestions(true);
                     }}
-                    aria-label="Clear search"
-                    className="absolute right-20 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 p-1"
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      setShowSuggestions(true);
+                    }}
+                    placeholder="What are you looking for? (e.g. Honda Accord, iPhone 15...)"
+                    className="w-full pl-10 pr-28 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-brand-orange transition"
+                  />
+                  <Search className="w-4 h-4 text-gray-400 absolute left-3 top-3" />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearchQuery('');
+                        setSuggestions([]);
+                        setShowSuggestions(false);
+                        if (pathname === '/') applyFilterNavigation({ search: '' }, true);
+                      }}
+                      aria-label="Clear search"
+                      className="absolute right-20 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 p-1"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                  <button
+                    type="submit"
+                    className="absolute right-1 top-1 bottom-1 bg-brand-orange hover:bg-orange-700 text-white px-4 rounded text-xs font-bold transition"
                   >
-                    <X className="w-3.5 h-3.5" />
+                    Search
                   </button>
+                </form>
+
+                {showSuggestions && searchQuery.trim().length > 0 && (
+                  <div className="absolute left-0 right-0 top-full mt-1.5 bg-white dark:bg-neutral-900 rounded-xl border border-gray-200 dark:border-neutral-700 shadow-2xl z-50 overflow-hidden divide-y divide-gray-100 dark:divide-neutral-800">
+                    {suggestions.length > 0 ? (
+                      suggestions.map((item: any, idx: number) => {
+                        const visual = item.categoryName
+                          ? getCategoryVisualMeta(item.categoryName)
+                          : null;
+                        return (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => handleSelectSuggestion(item)}
+                            className="w-full px-3.5 py-2.5 text-left hover:bg-orange-50/70 dark:hover:bg-neutral-800 flex items-center justify-between gap-3 transition"
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <Search className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                              <span className="text-xs text-gray-800 dark:text-neutral-200 truncate">
+                                <strong className="font-extrabold text-gray-900 dark:text-white">
+                                  {item.query}
+                                </strong>
+                                {item.categoryName && (
+                                  <>
+                                    {" "}in{" "}
+                                    <span className="font-extrabold text-brand-orange">
+                                      {item.subcategory || item.categoryName}
+                                    </span>
+                                  </>
+                                )}
+                              </span>
+                            </div>
+                            {visual && (
+                              <img
+                                src={visual.image}
+                                alt={item.categoryName}
+                                className="w-7 h-7 rounded-md object-cover border border-gray-200 shrink-0"
+                              />
+                            )}
+                          </button>
+                        );
+                      })
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleSelectSuggestion({ query: searchQuery.trim() })}
+                        className="w-full px-3.5 py-2.5 text-left text-xs text-gray-700 hover:bg-orange-50 flex items-center gap-2"
+                      >
+                        <Search className="w-3.5 h-3.5 text-brand-orange" />
+                        <span>
+                          {loadingSuggestions ? "Searching categories..." : "Search for "}
+                          <strong>&ldquo;{searchQuery.trim()}&rdquo;</strong>
+                        </span>
+                      </button>
+                    )}
+                  </div>
                 )}
-                <button
-                  type="submit"
-                  className="absolute right-1 top-1 bottom-1 bg-brand-orange hover:bg-orange-700 text-white px-4 rounded text-xs font-bold transition"
-                >
-                  Search
-                </button>
-              </form>
+              </div>
             </div>
 
             {/* Icons & Actions */}

@@ -1,6 +1,7 @@
 "use client";
 
 import { getAdPath } from '../lib/adUrl';
+import { getCategoryPath } from '../lib/categoryUrl';
 import { useState, useEffect, useCallback, useMemo, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -317,6 +318,8 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
     }
   };
   const [recentlyViewed, setRecentlyViewed] = useState<any[]>([]);
+  const feedAbortRef = useRef<AbortController | null>(null);
+  const feedSeqRef = useRef<number>(0);
 
   useEffect(() => {
     try {
@@ -356,8 +359,17 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
 
   const fetchFilteredAds = useCallback(
     async (pageNum: number, reset: boolean) => {
-      if (reset) setLoadingFeed(true);
-      else setLoadingMore(true);
+      let controller: AbortController | null = null;
+      let currentSeq = feedSeqRef.current;
+      if (reset) {
+        if (feedAbortRef.current) feedAbortRef.current.abort();
+        controller = new AbortController();
+        feedAbortRef.current = controller;
+        currentSeq = ++feedSeqRef.current;
+        setLoadingFeed(true);
+      } else {
+        setLoadingMore(true);
+      }
 
       try {
         const url = new URL(`${API_URL}/ads`);
@@ -389,9 +401,11 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
         if (jiTrustOnly) url.searchParams.append('ji_trust', '1');
         if (sortBy !== 'newest') url.searchParams.append('sort', sortBy);
 
-        const res = await fetch(url.toString());
+        const res = await fetch(url.toString(), controller ? { signal: controller.signal } : undefined);
+        if (reset && currentSeq !== feedSeqRef.current) return;
         if (res.ok) {
           const data = await res.json();
+          if (reset && currentSeq !== feedSeqRef.current) return;
           const fetched = data.ads || [];
           if (reset) {
             setAds(fetched);
@@ -402,11 +416,15 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
           }
           setHasMoreAds(fetched.length >= 20);
         }
-      } catch (err) {
-        console.error('Error loading filtered ads', err);
+      } catch (err: any) {
+        if (err?.name !== 'AbortError') {
+          console.error('Error loading filtered ads', err);
+        }
       } finally {
-        setLoadingFeed(false);
-        setLoadingMore(false);
+        if (!reset || currentSeq === feedSeqRef.current) {
+          setLoadingFeed(false);
+          setLoadingMore(false);
+        }
       }
     },
     [
@@ -599,12 +617,7 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
                       type="button"
                       onClick={() => {
                         setHoveredCatId(null);
-                        updateUrlParams({
-                          category: String(c.id),
-                          subcategory: '',
-                          sub_subcategory: '',
-                          sub_sub_subcategory: '',
-                        });
+                        router.push(getCategoryPath(c));
                       }}
                       className={`w-full flex items-center justify-between gap-2.5 text-left px-3.5 py-2 text-xs transition group ${
                         isSelected || isHovered
@@ -679,14 +692,9 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
                 <button
                   type="button"
                   onClick={() => {
-                    const targetId = String(hoveredCatObj.id);
+                    const targetCat = hoveredCatObj;
                     setHoveredCatId(null);
-                    updateUrlParams({
-                      category: targetId,
-                      subcategory: '',
-                      sub_subcategory: '',
-                      sub_sub_subcategory: '',
-                    });
+                    router.push(getCategoryPath(targetCat));
                   }}
                   className="px-3 py-1.5 rounded-lg bg-brand-orange hover:bg-orange-700 text-white text-xs font-bold transition shrink-0"
                 >
@@ -704,14 +712,9 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
                     <button
                       type="button"
                       onClick={() => {
-                        const targetId = String(hoveredCatObj.id);
+                        const targetCat = hoveredCatObj;
                         setHoveredCatId(null);
-                        updateUrlParams({
-                          category: targetId,
-                          subcategory: l2.name,
-                          sub_subcategory: '',
-                          sub_sub_subcategory: '',
-                        });
+                        router.push(getCategoryPath(targetCat, l2.name));
                       }}
                       className="w-full flex items-center justify-between text-left text-xs font-extrabold text-gray-900 dark:text-neutral-100 hover:text-brand-orange transition"
                     >
@@ -726,14 +729,9 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
                             key={l3.name}
                             type="button"
                             onClick={() => {
-                              const targetId = String(hoveredCatObj.id);
+                              const targetCat = hoveredCatObj;
                               setHoveredCatId(null);
-                              updateUrlParams({
-                                category: targetId,
-                                subcategory: l2.name,
-                                sub_subcategory: l3.name,
-                                sub_sub_subcategory: '',
-                              });
+                              router.push(getCategoryPath(targetCat, l2.name, { sub_subcategory: l3.name }));
                             }}
                             className="text-[10px] font-semibold px-2 py-0.5 rounded bg-white dark:bg-neutral-900 text-gray-600 dark:text-neutral-300 hover:bg-brand-orange hover:text-white border border-gray-200/80 dark:border-neutral-700 transition"
                           >
@@ -773,14 +771,7 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
                   <button
                     key={c.id}
                     type="button"
-                    onClick={() =>
-                      updateUrlParams({
-                        category: String(c.id),
-                        subcategory: '',
-                        sub_subcategory: '',
-                        sub_sub_subcategory: '',
-                      })
-                    }
+                    onClick={() => router.push(getCategoryPath(c))}
                     className="group bg-white dark:bg-neutral-900 hover:bg-orange-50/70 dark:hover:bg-neutral-800 border border-gray-200 dark:border-neutral-800 hover:border-brand-orange rounded-xl p-2 flex flex-col items-center text-center shadow-2xs transition"
                   >
                     <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-lg overflow-hidden bg-gray-100 mb-1.5 border border-gray-100 dark:border-neutral-800">
@@ -918,14 +909,9 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
               <button
                 type="button"
                 onClick={() => {
-                  const targetId = String(mobileSheetCat.id);
+                  const targetCat = mobileSheetCat;
                   setMobileSheetCat(null);
-                  updateUrlParams({
-                    category: targetId,
-                    subcategory: '',
-                    sub_subcategory: '',
-                    sub_sub_subcategory: '',
-                  });
+                  router.push(getCategoryPath(targetCat));
                 }}
                 className="w-full py-2.5 px-3.5 rounded-xl bg-brand-orange text-white text-xs font-extrabold flex items-center justify-between"
               >
@@ -939,14 +925,9 @@ function FeedContent({ initialCategories, initialAds }: MarketplaceFeedProps) {
                     key={l2.name}
                     type="button"
                     onClick={() => {
-                      const targetId = String(mobileSheetCat.id);
+                      const targetCat = mobileSheetCat;
                       setMobileSheetCat(null);
-                      updateUrlParams({
-                        category: targetId,
-                        subcategory: l2.name,
-                        sub_subcategory: '',
-                        sub_sub_subcategory: '',
-                      });
+                      router.push(getCategoryPath(targetCat, l2.name));
                     }}
                     className="w-full px-3.5 py-2.5 rounded-xl bg-gray-50 dark:bg-neutral-800 hover:bg-orange-50 text-left text-xs font-bold text-gray-800 dark:text-neutral-200 flex items-center justify-between"
                   >
