@@ -1,5 +1,6 @@
 "use client";
 
+import RichBlogEditor from '../../components/RichBlogEditor';
 import { getAdPath } from '../../lib/adUrl';
 import {
   useState,
@@ -593,6 +594,10 @@ export default function AdminDashboardPage() {
 
   const handleSaveBlogPost = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!blogForm.content.replace(/<[^>]*>/g, '').trim()) {
+      notify('Please write your article content before publishing.');
+      return;
+    }
     setSavingPost(true);
 
     const formData = new FormData();
@@ -1830,16 +1835,14 @@ export default function AdminDashboardPage() {
                 </div>
 
                 <div className="md:col-span-2">
-                  <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1">
-                    Article Body *
+                  <label className="block text-[11px] font-bold text-gray-500 uppercase mb-1.5">
+                    Article Body (Visual WordPress-Style Editor) *
                   </label>
-                  <textarea
-                    required
-                    rows={8}
+                  <RichBlogEditor
                     value={blogForm.content}
-                    onChange={(e) => setBlogForm({ ...blogForm, content: e.target.value })}
-                    placeholder="Write your full article here..."
-                    className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-sm outline-none focus:border-brand-orange"
+                    onChange={(html) => setBlogForm((prev) => ({ ...prev, content: html }))}
+                    apiUrl={API_URL}
+                    getAuthHeaders={getAuthHeaders}
                   />
                 </div>
 

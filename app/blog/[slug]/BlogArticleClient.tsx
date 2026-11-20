@@ -100,9 +100,109 @@ function BlogArticleContent() {
         </div>
       )}
 
-      <div className="bg-white rounded-2xl border border-gray-200 p-6 md:p-10 shadow-sm space-y-4 text-sm md:text-base text-gray-700 leading-relaxed whitespace-pre-line">
-        {post.content}
-      </div>
+      <div
+        className="ji-article-body bg-white rounded-2xl border border-gray-200 p-6 md:p-10 shadow-sm text-sm md:text-base text-gray-700 leading-relaxed"
+        dangerouslySetInnerHTML={{ __html: formatArticleHtml(post.content) }}
+      />
+
+      <style jsx global>{`
+        .ji-article-body h2 {
+          font-size: 1.5rem;
+          font-weight: 900;
+          color: #111827;
+          margin-top: 2rem;
+          margin-bottom: 0.75rem;
+          padding-top: 0.5rem;
+          border-top: 1px solid #f3f4f6;
+          line-height: 1.3;
+        }
+        .ji-article-body h2:first-child {
+          margin-top: 0;
+          border-top: none;
+          padding-top: 0;
+        }
+        .ji-article-body h3 {
+          font-size: 1.2rem;
+          font-weight: 800;
+          color: #1f2937;
+          margin-top: 1.5rem;
+          margin-bottom: 0.6rem;
+          line-height: 1.35;
+        }
+        .ji-article-body p {
+          margin-bottom: 1rem;
+          line-height: 1.8;
+        }
+        .ji-article-body a {
+          color: #ea580c;
+          font-weight: 700;
+          text-decoration: underline;
+          text-underline-offset: 3px;
+        }
+        .ji-article-body a:hover {
+          color: #c2410c;
+        }
+        .ji-article-body ul {
+          list-style-type: disc;
+          padding-left: 1.5rem;
+          margin-bottom: 1.1rem;
+        }
+        .ji-article-body ol {
+          list-style-type: decimal;
+          padding-left: 1.5rem;
+          margin-bottom: 1.1rem;
+        }
+        .ji-article-body li {
+          margin-bottom: 0.35rem;
+          line-height: 1.7;
+        }
+        .ji-article-body blockquote {
+          border-left: 4px solid #ea580c;
+          background: rgba(255, 237, 213, 0.5);
+          padding: 0.9rem 1.2rem;
+          margin: 1.25rem 0;
+          border-radius: 0 0.875rem 0.875rem 0;
+          font-style: italic;
+          color: #1f2937;
+        }
+        .ji-article-body figure {
+          margin: 1.75rem 0;
+          border-radius: 1rem;
+          overflow: hidden;
+          border: 1px solid #e5e7eb;
+          background: #f9fafb;
+        }
+        .ji-article-body figure img,
+        .ji-article-body img {
+          width: 100%;
+          max-height: 480px;
+          object-fit: cover;
+          display: block;
+        }
+        .ji-article-body figcaption {
+          padding: 0.6rem 1rem;
+          font-size: 0.78rem;
+          color: #6b7280;
+          text-align: center;
+          font-style: italic;
+          border-top: 1px solid #f3f4f6;
+        }
+        .ji-article-body a.ji-blog-cta {
+          display: inline-block;
+          background: #ea580c;
+          color: #ffffff !important;
+          text-decoration: none !important;
+          font-weight: 800;
+          font-size: 0.9rem;
+          padding: 0.75rem 1.5rem;
+          border-radius: 0.75rem;
+          margin: 0.5rem 0;
+          box-shadow: 0 4px 12px rgba(234, 88, 12, 0.25);
+        }
+        .ji-article-body a.ji-blog-cta:hover {
+          background: #c2410c;
+        }
+      `}</style>
 
       {post.seo_keywords && (
         <div className="flex flex-wrap gap-2 pt-2">
@@ -118,6 +218,20 @@ function BlogArticleContent() {
       )}
     </article>
   );
+}
+
+function formatArticleHtml(raw: string): string {
+  const text = String(raw || '').trim();
+  if (!text) return '';
+  const sanitized = text
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/\son\w+\s*=\s*(["']).*?\1/gi, '');
+  const hasHtml = /<(h2|h3|p|div|ul|ol|blockquote|figure|img|a)\b/i.test(sanitized);
+  if (hasHtml) return sanitized;
+  return sanitized
+    .split(/\n{2,}/)
+    .map((block) => '<p>' + block.replace(/\n/g, '<br />') + '</p>')
+    .join('');
 }
 
 export default function BlogArticleClient() {

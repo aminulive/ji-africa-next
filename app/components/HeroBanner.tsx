@@ -44,12 +44,6 @@ export default function HeroBanner() {
         </div>
 
         <div className="z-10 flex flex-wrap items-center justify-center gap-2 shrink-0">
-          <Link
-            href="/sell"
-            className="bg-gray-900 hover:bg-black text-white px-4 py-2 rounded-full text-xs font-extrabold transition shadow-sm"
-          >
-            + Post Ad Free
-          </Link>
           <button
             type="button"
             onClick={() => setShowSafetyModal(true)}
