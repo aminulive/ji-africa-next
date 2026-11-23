@@ -710,14 +710,12 @@ function NavbarContent() {
                     )}
                   </div>
                 ) : (
-                  <Link href="/login" className="flex items-center gap-2 transition ml-1">
-                    <div className="w-7 h-7 rounded-full bg-orange-100 text-orange-700 font-bold flex items-center justify-center text-xs overflow-hidden">
-                      U
-                    </div>
-                    <span className="text-xs font-bold hidden md:block text-gray-700 hover:text-brand-orange transition-colors">
-                      Log In
-                    </span>
-                  </Link>
+                  <Link
+              href="/login"
+              className="inline-flex items-center justify-center px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg border border-orange-200 bg-orange-50 hover:bg-orange-100 text-brand-orange text-[10px] sm:text-xs font-extrabold whitespace-nowrap tracking-tight transition ml-1"
+            >
+              Sign In / Sign Up
+            </Link>
                 )}
               </div>
 

@@ -15,6 +15,8 @@ import {
   RefreshCw,
   ShoppingBag,
   Store,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { GoogleLogin } from '@react-oauth/google';
 
@@ -36,6 +38,9 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
 
   // Extended Registration States
   const [fullName, setFullName] = useState('');
@@ -604,14 +609,24 @@ export default function LoginPage() {
                   Forgot password?
                 </button>
               </div>
-              <input
-                type="password"
-                placeholder="Enter your password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition"
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="Enter your password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full pl-4 pr-11 py-3 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 p-1 transition"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
             </div>
 
             <button
@@ -812,31 +827,51 @@ export default function LoginPage() {
 
             {/* Dual Password Confirmation Fields (Shown for Both Regular Users & Sellers) */}
             <div className="space-y-2.5">
-              <input
-                type="password"
-                placeholder="Create Password (min 6 characters) *"
-                required
-                minLength={6}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition"
-              />
+              <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder="Create Password (min 6 characters) *"
+                    required
+                    minLength={6}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full pl-4 pr-11 py-3 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange transition"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((prev) => !prev)}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 p-1 transition"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
 
-              <input
-                type="password"
-                placeholder="Confirm Password *"
-                required
-                minLength={6}
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className={`w-full px-4 py-3 border rounded-lg text-sm bg-gray-50 focus:bg-white focus:outline-none transition ${
-                  confirmPassword.length > 0
-                    ? passwordsMatch
-                      ? 'border-emerald-400 focus:border-emerald-500'
-                      : 'border-red-300 focus:border-red-500'
-                    : 'border-gray-200 focus:border-brand-orange'
-                }`}
-              />
+              <div className="relative">
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    placeholder="Confirm Password *"
+                    required
+                    minLength={6}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className={`w-full pl-4 pr-11 py-3 border rounded-lg text-sm bg-gray-50 focus:bg-white focus:outline-none transition ${
+                      confirmPassword.length > 0
+                        ? passwordsMatch
+                          ? 'border-emerald-400 focus:border-emerald-500'
+                          : 'border-red-300 focus:border-red-500'
+                        : 'border-gray-200 focus:border-brand-orange'
+                    }`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword((prev) => !prev)}
+                    aria-label={showConfirmPassword ? "Hide confirm password" : "Show confirm password"}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 p-1 transition"
+                  >
+                    {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
 
               {passwordsEntered && confirmPassword.length > 0 && (
                 <p
@@ -1181,15 +1216,25 @@ export default function LoginPage() {
                   placeholder="6-Digit Reset Code"
                   className="w-full px-4 py-3 border border-gray-200 rounded-lg text-center text-lg font-bold tracking-widest bg-gray-50 focus:bg-white focus:border-brand-orange outline-none"
                 />
+                <div className="relative">
                 <input
-                  type="password"
+                  type={showNewPassword ? 'text' : 'password'}
                   required
                   minLength={6}
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   placeholder="New Password (min 6 characters)"
-                  className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:bg-white focus:border-brand-orange outline-none"
+                  className="w-full pl-4 pr-11 py-3 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-brand-orange outline-none"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowNewPassword((prev) => !prev)}
+                  aria-label={showNewPassword ? "Hide new password" : "Show new password"}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 p-1 transition"
+                >
+                  {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
                 <button
                   type="submit"
                   disabled={loading}
