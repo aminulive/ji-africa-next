@@ -1,30 +1,44 @@
 "use client";
 
-import { useState, useEffect, Suspense } from 'react';
-import { useParams } from 'next/navigation';
-import Link from 'next/link';
-import { ArrowLeft, Calendar, User, Share2, Loader2, CheckCircle2 } from 'lucide-react';
+import { useState, useEffect } from "react";
+import { useParams } from "next/navigation";
+import Link from "next/link";
+import { ArrowLeft, Calendar, User, Share2, Loader2, CheckCircle2, ArrowRight } from "lucide-react";
 
-const API_URL = 'https://ji-africa-backend.onrender.com/api';
+const API_URL = "https://ji-africa-backend.onrender.com/api";
 
-function BlogArticleContent() {
+type BlogArticleClientProps = {
+  initialPost?: any;
+  relatedPosts?: any[];
+};
+
+export default function BlogArticleClient({
+  initialPost = null,
+  relatedPosts = [],
+}: BlogArticleClientProps) {
   const params = useParams();
-  const slug = String(params?.slug || '');
-  const [post, setPost] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const slug = String(params?.slug || initialPost?.slug || "");
+  const [post, setPost] = useState<any>(initialPost);
+  const [loading, setLoading] = useState(!initialPost);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
+    if (initialPost && initialPost.slug === slug) {
+      setPost(initialPost);
+      setLoading(false);
+      return;
+    }
     if (!slug) return;
+    setLoading(true);
     fetch(`${API_URL}/blog/${encodeURIComponent(slug)}`)
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => setPost(data))
       .catch(() => setPost(null))
       .finally(() => setLoading(false));
-  }, [slug]);
+  }, [slug, initialPost]);
 
   const handleShare = () => {
-    if (typeof navigator !== 'undefined') {
+    if (typeof navigator !== "undefined") {
       navigator.clipboard.writeText(window.location.href);
       setCopied(true);
       setTimeout(() => setCopied(false), 2500);
@@ -52,12 +66,13 @@ function BlogArticleContent() {
 
   return (
     <article className="max-w-3xl mx-auto pb-16 space-y-6">
-      <Link
-        href="/blog"
-        className="inline-flex items-center gap-1.5 text-xs font-bold text-gray-500 hover:text-brand-orange"
-      >
-        <ArrowLeft className="w-4 h-4" /> Back to Blog
-      </Link>
+      <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-xs font-semibold text-gray-500">
+        <Link href="/" className="hover:text-brand-orange">Home</Link>
+        <span>/</span>
+        <Link href="/blog" className="inline-flex items-center gap-1 hover:text-brand-orange">
+          <ArrowLeft className="w-3.5 h-3.5" /> Blog
+        </Link>
+      </nav>
 
       <header className="space-y-4">
         <h1 className="text-3xl md:text-4xl font-black text-gray-900 leading-tight">
@@ -68,12 +83,12 @@ function BlogArticleContent() {
           <div className="flex items-center gap-4">
             <span className="flex items-center gap-1.5 font-semibold text-gray-700">
               <User className="w-4 h-4 text-brand-orange" />
-              {post.author?.full_name || 'ji.africa Editorial'}
+              {post.author?.full_name || "ji.africa Editorial"}
             </span>
-            <span className="flex items-center gap-1.5">
+            <time dateTime={post.created_at} className="flex items-center gap-1.5">
               <Calendar className="w-4 h-4 text-brand-orange" />
-              {new Date(post.created_at).toLocaleDateString('en-GB')}
-            </span>
+              {new Date(post.created_at).toLocaleDateString("en-GB")}
+            </time>
           </div>
 
           <button
@@ -206,7 +221,7 @@ function BlogArticleContent() {
 
       {post.seo_keywords && (
         <div className="flex flex-wrap gap-2 pt-2">
-          {post.seo_keywords.split(',').map((kw: string, i: number) => (
+          {post.seo_keywords.split(",").map((kw: string, i: number) => (
             <span
               key={i}
               className="px-3 py-1 bg-gray-100 text-gray-600 rounded-full text-xs font-semibold"
@@ -216,34 +231,66 @@ function BlogArticleContent() {
           ))}
         </div>
       )}
+
+      {/* Internal Marketplace & Related Articles Links for SEO & Discovery */}
+      <section className="bg-orange-50/70 border border-orange-200/80 rounded-2xl p-6 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-base font-black text-gray-900">
+            Shop Verified Deals on ji.africa
+          </h2>
+          <Link href="/" className="text-xs font-bold text-brand-orange hover:underline">
+            Browse All Listings →
+          </Link>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Link href="/category/electronics" className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-bold text-gray-800 hover:border-brand-orange transition">
+            Electronics &amp; Appliances
+          </Link>
+          <Link href="/category/phones-and-tablets" className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-bold text-gray-800 hover:border-brand-orange transition">
+            Phones &amp; Tablets
+          </Link>
+          <Link href="/category/vehicles" className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-bold text-gray-800 hover:border-brand-orange transition">
+            Vehicles &amp; Cars
+          </Link>
+          <Link href="/category/home-furniture-and-appliances" className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs font-bold text-gray-800 hover:border-brand-orange transition">
+            Home &amp; Appliances
+          </Link>
+        </div>
+      </section>
+
+      {relatedPosts.length > 0 && (
+        <section className="pt-4 space-y-4">
+          <h2 className="text-lg font-black text-gray-900">More Marketplace Guides</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {relatedPosts.map((rel: any) => (
+              <Link
+                key={rel.id || rel.slug}
+                href={`/blog/${rel.slug}`}
+                className="bg-white rounded-xl border border-gray-200 p-4 hover:border-brand-orange transition flex flex-col justify-between gap-3"
+              >
+                <p className="font-bold text-sm text-gray-900 line-clamp-2">{rel.title}</p>
+                <span className="inline-flex items-center gap-1 text-xs font-bold text-brand-orange">
+                  Read Guide <ArrowRight className="w-3.5 h-3.5" />
+                </span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
     </article>
   );
 }
 
 function formatArticleHtml(raw: string): string {
-  const text = String(raw || '').trim();
-  if (!text) return '';
+  const text = String(raw || "").trim();
+  if (!text) return "";
   const sanitized = text
-    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-    .replace(/\son\w+\s*=\s*(["']).*?\1/gi, '');
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
+    .replace(/\son\w+\s*=\s*(["']).*?\1/gi, "");
   const hasHtml = /<(h2|h3|p|div|ul|ol|blockquote|figure|img|a)\b/i.test(sanitized);
   if (hasHtml) return sanitized;
   return sanitized
     .split(/\n{2,}/)
-    .map((block) => '<p>' + block.replace(/\n/g, '<br />') + '</p>')
-    .join('');
-}
-
-export default function BlogArticleClient() {
-  return (
-    <Suspense
-      fallback={
-        <div className="flex items-center justify-center min-h-[50vh]">
-          <Loader2 className="w-8 h-8 animate-spin text-brand-orange" />
-        </div>
-      }
-    >
-      <BlogArticleContent />
-    </Suspense>
-  );
+    .map((block) => "<p>" + block.replace(/\n/g, "<br />") + "</p>")
+    .join("");
 }

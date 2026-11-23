@@ -6,6 +6,7 @@ import PwaInstallBanner from "./components/PwaInstallBanner";
 import GoogleAuthWrapper from "./components/GoogleAuthWrapper";
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://www.ji.africa"),
   title: "ji.africa - Nigeria's Fast Classifieds Marketplace",
   description: "Buy & Sell Clean Used Items Anywhere in Nigeria",
   icons: {
