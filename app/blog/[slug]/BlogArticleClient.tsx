@@ -3,7 +3,17 @@
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Calendar, User, Share2, Loader2, CheckCircle2, ArrowRight } from "lucide-react";
+import {
+  ArrowLeft,
+  Calendar,
+  User,
+  Share2,
+  Loader2,
+  CheckCircle2,
+  ArrowRight,
+  Search,
+  ShieldCheck,
+} from "lucide-react";
 
 const API_URL = "https://ji-africa-backend.onrender.com/api";
 
@@ -11,6 +21,69 @@ type BlogArticleClientProps = {
   initialPost?: any;
   relatedPosts?: any[];
 };
+
+function getContextualCta(post: any) {
+  const haystack = `${post?.slug || ""} ${post?.title || ""} ${post?.seo_keywords || ""}`.toLowerCase();
+
+  if (haystack.includes("fan")) {
+    return {
+      query: "rechargeable fan",
+      buttonLabel: "Compare Live Rechargeable Fan Prices on ji.africa",
+      subtext: "Browse verified Nigerian sellers for Binatone, Qasa, Lontor, Duravolt & itel fans.",
+      categoryHref: "/category/home-furniture-and-appliances",
+      categoryLabel: "Home & Appliances",
+    };
+  }
+  if (haystack.includes("samsung") || haystack.includes("a57")) {
+    return {
+      query: "samsung a57",
+      buttonLabel: "Compare Live Samsung Galaxy A57 Deals on ji.africa",
+      subtext: "Filter by city and storage variant from verified Nigerian phone vendors.",
+      categoryHref: "/category/phones-and-tablets",
+      categoryLabel: "Phones & Tablets",
+    };
+  }
+  if (haystack.includes("tecno") || haystack.includes("spark 50")) {
+    return {
+      query: "tecno spark 50",
+      buttonLabel: "Browse Live Tecno Spark 50 Listings on ji.africa",
+      subtext: "Compare brand-new and UK-used Tecno phones across Lagos, Abuja & nationwide.",
+      categoryHref: "/category/phones-and-tablets",
+      categoryLabel: "Phones & Tablets",
+    };
+  }
+  if (haystack.includes("gta") || haystack.includes("ps5") || haystack.includes("xbox")) {
+    return {
+      query: "ps5",
+      buttonLabel: "Shop PS5, Xbox & Gaming Deals on ji.africa",
+      subtext: "Find consoles, controllers, and verified gaming accessories near you.",
+      categoryHref: "/category/electronics",
+      categoryLabel: "Electronics & Gaming",
+    };
+  }
+
+  const firstKeyword = String(post?.seo_keywords || "")
+    .split(",")[0]
+    ?.trim();
+  const fallbackQuery =
+    firstKeyword ||
+    String(post?.title || "")
+      .replace(/price in nigeria|\(202[567]\)|202[567]|best|how to|what is/gi, "")
+      .trim()
+      .split(/\s+/)
+      .slice(0, 3)
+      .join(" ");
+
+  return {
+    query: fallbackQuery || "",
+    buttonLabel: fallbackQuery
+      ? `Browse Live "${fallbackQuery}" Deals on ji.africa`
+      : "Browse Verified Marketplace Deals on ji.africa",
+    subtext: "Connect directly with verified Nigerian sellers via WhatsApp or JI Trust escrow.",
+    categoryHref: "/",
+    categoryLabel: "All Marketplace Categories",
+  };
+}
 
 export default function BlogArticleClient({
   initialPost = null,
@@ -64,6 +137,9 @@ export default function BlogArticleClient({
     );
   }
 
+  const cta = getContextualCta(post);
+  const searchHref = cta.query ? `/?q=${encodeURIComponent(cta.query)}` : "/";
+
   return (
     <article className="max-w-3xl mx-auto pb-16 space-y-6">
       <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-xs font-semibold text-gray-500">
@@ -115,10 +191,30 @@ export default function BlogArticleClient({
         </div>
       )}
 
-      <div
-        className="ji-article-body bg-white rounded-2xl border border-gray-200 p-6 md:p-10 shadow-sm text-sm md:text-base text-gray-700 leading-relaxed"
-        dangerouslySetInnerHTML={{ __html: formatArticleHtml(post.content) }}
-      />
+      <div className="bg-white rounded-2xl border border-gray-200 p-6 md:p-10 shadow-sm space-y-8">
+        <div
+          className="ji-article-body text-sm md:text-base text-gray-700 leading-relaxed"
+          dangerouslySetInnerHTML={{ __html: formatArticleHtml(post.content) }}
+        />
+
+        {/* Contextual Marketplace Search CTA */}
+        <div className="rounded-2xl bg-orange-50/80 border border-orange-200 p-5 md:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-brand-orange">
+              <ShieldCheck className="w-3.5 h-3.5" /> Live Marketplace Prices
+            </span>
+            <p className="text-sm font-black text-gray-900">{cta.buttonLabel}</p>
+            <p className="text-xs text-gray-600">{cta.subtext}</p>
+          </div>
+
+          <Link
+            href={searchHref}
+            className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-brand-orange hover:bg-orange-700 text-white text-xs font-black shadow-sm transition shrink-0"
+          >
+            <Search className="w-3.5 h-3.5" /> Compare Prices
+          </Link>
+        </div>
+      </div>
 
       <style jsx global>{`
         .ji-article-body h2 {
@@ -171,6 +267,23 @@ export default function BlogArticleClient({
           margin-bottom: 0.35rem;
           line-height: 1.7;
         }
+        .ji-article-body table {
+          width: 100%;
+          border-collapse: collapse;
+          margin: 1.5rem 0;
+          font-size: 0.875rem;
+        }
+        .ji-article-body td,
+        .ji-article-body th {
+          border: 1px solid #e5e7eb;
+          padding: 0.6rem 0.85rem;
+          text-align: left;
+        }
+        .ji-article-body thead td,
+        .ji-article-body th {
+          background: #f9fafb;
+          font-weight: 800;
+        }
         .ji-article-body blockquote {
           border-left: 4px solid #ea580c;
           background: rgba(255, 237, 213, 0.5);
@@ -217,6 +330,41 @@ export default function BlogArticleClient({
         .ji-article-body a.ji-blog-cta:hover {
           background: #c2410c;
         }
+
+        /* Dark Mode Support for Article Content & Tables */
+        html.dark .ji-article-body {
+          color: #d4d4d8;
+        }
+        html.dark .ji-article-body h2 {
+          color: #f4f4f5;
+          border-top-color: #27272a;
+        }
+        html.dark .ji-article-body h3,
+        html.dark .ji-article-body strong,
+        html.dark .ji-article-body b {
+          color: #fafafa;
+        }
+        html.dark .ji-article-body td,
+        html.dark .ji-article-body th {
+          border-color: #3f3f46 !important;
+        }
+        html.dark .ji-article-body thead td,
+        html.dark .ji-article-body th {
+          background: #27272a;
+          color: #fafafa;
+        }
+        html.dark .ji-article-body blockquote {
+          background: rgba(234, 88, 12, 0.14);
+          color: #f4f4f5;
+        }
+        html.dark .ji-article-body figure {
+          background: #18181b;
+          border-color: #27272a;
+        }
+        html.dark .ji-article-body figcaption {
+          color: #a1a1aa;
+          border-top-color: #27272a;
+        }
       `}</style>
 
       {post.seo_keywords && (
@@ -238,8 +386,8 @@ export default function BlogArticleClient({
           <h2 className="text-base font-black text-gray-900">
             Shop Verified Deals on ji.africa
           </h2>
-          <Link href="/" className="text-xs font-bold text-brand-orange hover:underline">
-            Browse All Listings →
+          <Link href="/sell" className="text-xs font-bold text-brand-orange hover:underline">
+            Post a Free Ad →
           </Link>
         </div>
         <div className="flex flex-wrap gap-2">
