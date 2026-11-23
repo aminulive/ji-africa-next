@@ -1,6 +1,7 @@
 import { Suspense } from 'react';
 import { Loader2 } from 'lucide-react';
 import MarketplaceFeed from './components/MarketplaceFeed';
+import LatestGuidesStrip from './components/LatestGuidesStrip';
 
 async function getCategories() {
   try {
@@ -27,9 +28,31 @@ async function getAds() {
   }
 }
 
+async function getLatestBlogPosts() {
+  try {
+    const res = await fetch('https://ji-africa-backend.onrender.com/api/blog', {
+      next: { revalidate: 120 },
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data) ? data.slice(0, 4) : [];
+  } catch {
+    return [];
+  }
+}
+
 async function HomeFeedLoader() {
-  const [categories, ads] = await Promise.all([getCategories(), getAds()]);
-  return <MarketplaceFeed initialCategories={categories} initialAds={ads} />;
+  const [categories, ads, latestPosts] = await Promise.all([
+    getCategories(),
+    getAds(),
+    getLatestBlogPosts(),
+  ]);
+  return (
+    <>
+      <MarketplaceFeed initialCategories={categories} initialAds={ads} />
+      <LatestGuidesStrip posts={latestPosts} />
+    </>
+  );
 }
 
 export default function Home() {
